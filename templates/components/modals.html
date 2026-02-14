@@ -1,0 +1,1804 @@
+<!-- model.html -->
+<!-- Keep your usual template boilerplate around this file (doctype, head etc) -->
+
+<!-- ── Change Password Modal ──────────────────────────────────────────── -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changePasswordModalLabel">
+                    <i class="fas fa-key me-2"></i>Change Password
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="cpwAlert" class="alert d-none mb-3" role="alert"></div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" style="font-size:.875rem;">Current Password</label>
+                    <input type="password" class="form-control form-control-sm" id="cpwCurrent" autocomplete="current-password">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" style="font-size:.875rem;">New Password</label>
+                    <input type="password" class="form-control form-control-sm" id="cpwNew" autocomplete="new-password">
+                </div>
+                <div class="mb-1">
+                    <label class="form-label fw-semibold" style="font-size:.875rem;">Confirm New Password</label>
+                    <input type="password" class="form-control form-control-sm" id="cpwConfirm" autocomplete="new-password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" id="cpwSubmitBtn" onclick="doChangePassword()">
+                    <span id="cpwBtnText">Update Password</span>
+                    <span id="cpwSpinner" class="spinner-border spinner-border-sm ms-1 d-none"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Reset form when modal closes
+    document.getElementById('changePasswordModal').addEventListener('hidden.bs.modal', function () {
+        ['cpwCurrent','cpwNew','cpwConfirm'].forEach(id => document.getElementById(id).value = '');
+        const alert = document.getElementById('cpwAlert');
+        alert.className = 'alert d-none mb-3';
+        alert.textContent = '';
+    });
+
+    async function doChangePassword() {
+        const current = document.getElementById('cpwCurrent').value;
+        const newPwd  = document.getElementById('cpwNew').value;
+        const confirm = document.getElementById('cpwConfirm').value;
+        const alert   = document.getElementById('cpwAlert');
+        const btn     = document.getElementById('cpwSubmitBtn');
+        const spinner = document.getElementById('cpwSpinner');
+
+        alert.className = 'alert d-none mb-3';
+
+        if (!current || !newPwd || !confirm) {
+            alert.className = 'alert alert-danger mb-3';
+            alert.textContent = 'All fields are required.';
+            return;
+        }
+        if (newPwd !== confirm) {
+            alert.className = 'alert alert-danger mb-3';
+            alert.textContent = 'New passwords do not match.';
+            return;
+        }
+        if (newPwd.length < 8) {
+            alert.className = 'alert alert-danger mb-3';
+            alert.textContent = 'New password must be at least 8 characters.';
+            return;
+        }
+
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const res = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_password: current, new_password: newPwd }),
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                alert.className = 'alert alert-success mb-3';
+                alert.textContent = 'Password updated successfully.';
+                setTimeout(() => bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide(), 1200);
+            } else {
+                alert.className = 'alert alert-danger mb-3';
+                alert.textContent = data.message || 'Failed to update password.';
+            }
+        } catch {
+            alert.className = 'alert alert-danger mb-3';
+            alert.textContent = 'Network error. Please try again.';
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    }
+</script>
+<!-- ── End Change Password Modal ─────────────────────────────────────── -->
+
+<!-- Create Agent Modal -->
+
+<div class="modal fade" id="createAgentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createAgentModalTitle">Create BI Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createAgentForm">
+                    <div class="mb-3">
+                        <label class="form-label">Agent Name *</label>
+                        <input type="text" class="form-control" id="agentName" autocomplete="off" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Agent Description *</label>
+                        <textarea class="form-control" id="agentDescription" rows="3"
+                            placeholder="Describe what this agent does, its context, and its purpose..."
+                            required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Database Connection *</label>
+                        <select class="form-select" id="agentConnections" required>
+                            <option value="">Select a database connection</option>
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                        <small class="form-text text-muted">Choose a configured database connection</small>
+                    </div>
+
+                    <!-- Schema Selection Section -->
+                    <div id="schemaSelection" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Select Tables & Columns</label>
+                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                <div id="schemaTables">
+                                    <!-- Tables and columns will be populated here -->
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Select tables and specific columns to include in the
+                                agent's context</small>
+                        </div>
+
+                        <!-- Schema Context Field -->
+                        <!-- Enhanced Schema Context Section -->
+                        <div class="mb-3">
+                            <label class="form-label">Schema Context (AI-Generated)</label>
+                            <div class="input-group">
+                                <textarea class="form-control" id="schemaContext" rows="6"
+                                    placeholder="AI will analyze your database structure and sample data to generate meaningful context..."></textarea>
+                                <button type="button" class="btn btn-outline-primary" id="generateSchemaBtn" disabled>
+                                    <i class="fas fa-robot me-1"></i>AI Analyze Schema
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                <small>
+                                    🤖 AI will analyze table structures, sample data, and infer business context to
+                                    improve natural language understanding.
+                                    <br>
+                                    <strong>What it does:</strong> Examines column types, sample values, table names,
+                                    and infers relationships and business purposes.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Table Preview -->
+                        <div class="mb-3">
+                            <label class="form-label">Data Preview</label>
+                            <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Table</th>
+                                            <th>Columns Selected</th>
+                                            <th>Sample Rows</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewBody">
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted">
+                                                <small>Select tables and columns to see preview</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createAgentBtn" disabled>Create Agent</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Agent Modal -->
+<div class="modal fade" id="editAgentModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit BI Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAgentForm">
+                    <input type="hidden" id="editAgentOriginalName">
+
+                    <div class="mb-3">
+                        <label class="form-label">Agent Name</label>
+                        <input type="text" class="form-control" id="editAgentName" readonly>
+                        <small class="form-text text-muted">Agent name cannot be changed.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Agent Description *</label>
+                        <textarea class="form-control" id="editAgentDescription" rows="3" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Database Connection</label>
+                        <input type="text" class="form-control" id="editAgentConnectionDisplay" readonly>
+                        <input type="hidden" id="editAgentConnection">
+                        <small class="form-text text-muted">Connection cannot be changed. Delete and recreate agent to use a different connection.</small>
+                    </div>
+
+                    <!-- Schema Selection Section -->
+                    <div id="editSchemaSelection">
+                        <div class="mb-3">
+                            <label class="form-label">Tables &amp; Columns</label>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Check tables and columns to include. Uncheck to remove.</small>
+                                <div>
+                                    <span class="badge bg-primary me-1" id="editSelectedTablesCount">0 tables</span>
+                                    <span class="badge bg-secondary" id="editSelectedColsCount">0 columns</span>
+                                </div>
+                            </div>
+                            <div class="border rounded p-3" style="max-height: 350px; overflow-y: auto;">
+                                <div id="editSchemaTables">
+                                    <div class="text-center text-muted py-3">
+                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                        Loading schema...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Schema Context – Form + Raw JSON -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label mb-0 fw-semibold">Schema Context</label>
+                                <div class="d-flex gap-2">
+                                    <div class="btn-group btn-group-sm" role="group" id="schemaViewToggleGroup">
+                                        <button type="button" class="btn btn-outline-secondary active" id="schemaFormViewBtn">
+                                            <i class="fas fa-table me-1"></i>Form
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" id="schemaRawJsonBtn">
+                                            <i class="fas fa-code me-1"></i>Raw JSON
+                                        </button>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="editGenerateSchemaBtn">
+                                        <i class="fas fa-robot me-1"></i>Re-analyze
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Form View -->
+                            <div id="schemaContextFormView">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-muted text-uppercase">AI Analysis</label>
+                                    <textarea class="form-control form-control-sm" id="scAiAnalysis" rows="4"
+                                        placeholder="AI-generated business context and insights..."></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-muted text-uppercase">Business Context</label>
+                                    <input type="text" class="form-control form-control-sm" id="scBusinessContext" autocomplete="off"
+                                        placeholder="Short business context note...">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-muted text-uppercase">Table Descriptions &amp; Column Purposes</label>
+                                    <div class="accordion accordion-flush border rounded" id="schemaTablesAccordion"
+                                        style="max-height: 380px; overflow-y: auto;">
+                                        <div class="p-3 text-muted text-center" id="schemaTablesAccordionPlaceholder">
+                                            <small>No schema context generated yet. Use <strong>Re-analyze</strong> to generate.</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-1">
+                                    <label class="form-label small fw-semibold text-muted text-uppercase">
+                                        Semantic Rules
+                                        <span class="badge bg-light text-dark border ms-1"
+                                            title="Per-table rules that guide the AI when generating SQL. E.g. 'For revenue questions, always use total_revenue'.">i</span>
+                                    </label>
+                                    <small class="d-block text-muted mb-2">
+                                        Rules that tell the AI which columns to use for specific business questions.
+                                    </small>
+                                    <div id="semanticRulesContainer">
+                                        <!-- Populated by JS per selected table -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Raw JSON View (hidden by default) -->
+                            <div id="schemaContextRawView" style="display:none">
+                                <textarea class="form-control font-monospace" id="editSchemaContext" rows="10"
+                                    placeholder="{}"></textarea>
+                                <small class="text-muted">Edit raw JSON directly. Switch back to Form view to see changes reflected in the form.</small>
+                            </div>
+                        </div>
+
+                        <!-- Preview -->
+                        <div class="mb-3">
+                            <label class="form-label">Selection Preview</label>
+                            <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Table</th>
+                                            <th>Selected Columns</th>
+                                            <th>Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="editPreviewBody">
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted"><small>No tables selected</small></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="saveAgentBtn">
+                    <i class="fas fa-save me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Database Connection Modal -->
+<div class="modal fade" id="createConnectionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Database Connection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createConnectionForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Connection Name *</label>
+                                <input type="text" class="form-control" id="connectionName" autocomplete="off" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Database Type *</label>
+                                <select class="form-select" id="dbType" required>
+                                    <option value="">Select database type</option>
+                                    <option value="postgresql">PostgreSQL</option>
+                                    <option value="mysql">MySQL</option>
+                                    <option value="sqlite">SQLite</option>
+                                    <option value="mssql">SQL Server</option>
+                                    <option value="oracle">Oracle</option>
+                                    <option value="mongodb">MongoDB</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">Server/Host *</label>
+                                <input type="text" class="form-control" id="server" autocomplete="off" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Port</label>
+                                <input type="number" class="form-control" id="port" placeholder="Default based on type">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Database Name *</label>
+                        <input type="text" class="form-control" id="dbName" autocomplete="off" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Username *</label>
+                                <input type="text" class="form-control" id="username" autocomplete="off" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Password *</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Custom Python Packages (Optional)</label>
+                        <textarea class="form-control" id="customPackages" rows="3"
+                            placeholder="Enter custom Python packages for complex integrations, one per line"></textarea>
+                        <small class="form-text text-muted">For example: sqlalchemy-redshift, cx_Oracle</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="testConnectionBtn">
+                    <i class="fas fa-vial me-1"></i>Test Connection
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="createConnectionBtn">Create Connection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Document Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Documents</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Files</label>
+                    <input type="file" class="form-control" id="uploadFiles" multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Category (Optional)</label>
+                    <select class="form-select" id="documentCategory">
+                        <option value="">Select category</option>
+                        <option value="financial">Financial Reports</option>
+                        <option value="customer">Customer Data</option>
+                        <option value="market">Market Research</option>
+                        <option value="operational">Operational Data</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description (Optional)</label>
+                    <textarea class="form-control" id="documentDescription" rows="3"
+                        placeholder="Brief description of the documents"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="uploadDocumentsBtn">Upload</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Interface Modal for BI Agents -->
+<style>
+/* main.css defines several #chatModal .modal-body{display:flex;flex-direction:column}
+   rules with higher specificity than Bootstrap's d-flex — override explicitly here
+   so the history panel and chat area sit side-by-side. */
+#chatModal .modal-body.bi-chat-body {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    height: calc(100vh - 130px);
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+.bi-chat-body .chat-split-container {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 18px;
+}
+.bi-chat-body .chat-preview-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+#biConvoPanel {
+    width: 240px; flex-shrink: 0; height: 100%; background: #fff;
+    border-right: 1px solid #e5e7eb; display: flex; flex-direction: column;
+    transition: width .2s; overflow: hidden;
+}
+#biConvoPanel.bi-convo-hidden { width: 0; border: none; }
+.bi-convo-head {
+    padding: 10px 12px; border-bottom: 1px solid #f2eeee;
+    font-weight: 600; font-size: .82rem; color: #374151;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0;
+}
+.bi-convo-list { flex: 1; overflow-y: auto; padding: 6px; }
+.bi-convo-item {
+    padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    font-size: .8rem; color: #374151; transition: background .15s;
+    margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;
+}
+.bi-convo-item:hover { background: #f2eeee; }
+.bi-convo-item.active { background: #F8E8EB; color: #6B2038; }
+.bi-convo-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.bi-convo-del { color: #a89b9d; background: none; border: none; padding: 0 3px; font-size: .7rem; flex-shrink: 0; }
+.bi-convo-del:hover { color: #ef4444; }
+</style>
+<div class="modal fade fullscreen-modal" id="chatModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1100px; width:95vw; margin:1.75rem auto;">
+        <div class="modal-content">
+            <div class="modal-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="biConvoToggleBtn" onclick="window._biToggleHistory()" title="Conversation history">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="window._biNewChat()" title="New conversation">
+                        <i class="fas fa-plus"></i> New
+                    </button>
+                    <h5 class="modal-title mb-0" id="chatModalTitle">Chat with Agent</h5>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-danger" id="clearChatBtn">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+
+            <!-- modal body: conversation panel + chat area side by side -->
+            <div class="modal-body bi-chat-body">
+
+                <!-- LEFT: conversation history panel -->
+                <div id="biConvoPanel" class="bi-convo-hidden">
+                    <div class="bi-convo-head">
+                        <span>History</span>
+                        <button class="btn btn-sm btn-link p-0" onclick="window._biNewChat()" title="New chat" style="font-size:.75rem;">+ New</button>
+                    </div>
+                    <div class="bi-convo-list" id="biConvoList">
+                        <div class="text-center text-muted py-3" style="font-size:.78rem;">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: existing chat split container -->
+                <div class="chat-split-container flex-grow-1" style="overflow:hidden;">
+                    <div class="chat-preview-wrapper">
+
+                        <!-- LEFT: chat panel (holds chat container + input) -->
+                        <div id="chatLeftPanel" class="chat-left" style="width:100%; display:flex; flex-direction:column;">
+                            <!-- chat-container-wrapper includes the messages area + in-chat preview panel -->
+                            <div class="chat-container-wrapper" style="flex:1 1 auto; min-height:250px; max-height:100%;">
+                                <!-- CHAT MESSAGES AREA (main) -->
+                                <div id="chatMainArea" class="chat-main">
+                                    <div id="chatMessages" class="chat-container"
+                                        style="min-height:250px; max-height:100%; overflow-y:auto; border:1px solid #dee2e6; border-radius:8px; padding:1rem; background:white;">
+                                        <div class="alert alert-info">
+                                            <small>Ask natural language questions about your data.</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- RIGHT: IN-CHAT PREVIEW PANEL (hidden by default) -->
+                                <div id="chatPreviewPanel" class="chat-preview d-none" aria-hidden="true">
+                                    <div class="preview-header">
+                                        <div>
+                                            <strong id="previewTitle">Preview</strong>
+                                        </div>
+                                        <div class="preview-actions">
+                                            <button id="closePreviewBtn" class="btn btn-sm btn-outline-danger"
+                                                title="Close preview">×</button>
+                                        </div>
+                                    </div>
+
+                                    <div id="previewContent" class="preview-body">
+                                        <!-- iframe will be injected here -->
+                                    </div>
+
+                                    <!-- left edge resizer (draggable) -->
+                                    <div id="previewResizer" class="preview-resizer" aria-hidden="false"></div>
+                                </div>
+                            </div>
+
+                            <!-- INPUT + BUTTONS (kept below the container so preview doesn't push input) -->
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" type="button" id="speechBtn">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="webSearchBtn">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                                <input class="form-control" type="text" id="chatInput" autocomplete="off"
+                                    placeholder="Ask a question about your data...">
+
+                                <div class="input-group-append dropup">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                        id="modalToolsDropdown" data-bs-toggle="dropdown">
+                                        <i class="fas fa-tools"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" data-action="generate-infographic"><i
+                                                    class="fas fa-chart-pie me-2"></i>Infographic</a></li>
+                                        <li><a class="dropdown-item" data-action="generate-dashboard"><i
+                                                    class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                                        <li><a class="dropdown-item" data-action="generate-report"><i
+                                                    class="fas fa-file-alt me-2"></i>Report</a></li>
+                                        <li><a class="dropdown-item" data-action="generate-presentation"><i
+                                                    class="fas fa-slideshare me-2"></i>Presentation</a></li>
+                                    </ul>
+
+                                    <button class="btn btn-primary" id="sendChatMessageBtn">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <small id="speechTranscript" class="text-muted mt-1"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+
+<script>
+    // ---------- event attachment for dropdown items ----------
+    document.addEventListener("DOMContentLoaded", function () {
+        loadClients();
+        document.querySelectorAll('.dropdown-item').forEach(item => {
+            item.addEventListener('click', async (e) => {
+                // fallback to closest anchor if icon clicked
+                const action = e.currentTarget.dataset.action || e.target.dataset.action;
+                if (action === "generate-dashboard") {
+                    generateDashboard();
+                } else if (action === "generate-report") {
+                    generateReport();
+                } else if (action === "generate-infographic") {
+                    generateInfographic();
+                } else if (action === "generate-presentation") {
+                    generatePresentation();
+                }
+            });
+        });
+    });
+
+    // ==========================
+    // CLIENT CONFIG (ADD HERE - TOP OF SCRIPT)
+    // ==========================
+    let CLIENTS = [];
+
+    async function loadClients() {
+        try {
+            const res = await fetch('/api/clients');
+            CLIENTS = await res.json();
+            console.log("Loaded clients:", CLIENTS);
+        } catch (e) {
+            console.error("Failed to load clients", e);
+        }
+    }
+
+    // ==========================
+    // CLIENT DETECTION (ADD HERE)
+    // ==========================
+    function detectClientId(rows) {
+        if (!CLIENTS.length) {
+            console.warn("No clients loaded");
+            return null;
+        }
+
+        const titles = rows
+            .map(r => (r.MeetingTitle || "").toLowerCase())
+            .join(" ");
+
+        for (const client of CLIENTS) {
+            const name = (client.name || "").toLowerCase();
+            const id = client.id.toLowerCase();
+
+            if (titles.includes(id)) return client.id;
+
+            const words = name.split(/[\s&,-]+/);
+            for (const w of words) {
+                if (w.length > 3 && titles.includes(w)) {
+                    return client.id;
+                }
+            }
+        }
+
+        // ❌ NO fallback
+        return null;
+    }
+    // ==========================
+    //  PPT GENERATE
+    // ==========================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLACE the existing generatePresentation() function in model.html
+//
+// Full email-enrichment flow:
+//   1. Click PPT tool
+//   2. Detect client from query (done in the iframe now, but we preview here)
+//   3. If client detected → ask user "Include email data?"
+//   4. If Yes → fetch sender list → user picks → fetch emails → generate
+//   5. If No / not detected → generate normally
+//   6. Cache result keyed by fingerprint; Regenerate clears cache
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Persistent session cache ──────────────────────────────────────────────────
+window._presentationCache = window._presentationCache || {};
+
+function _pptFingerprint(lastResult) {
+    const rows     = lastResult.data || [];
+    const question = lastResult.question || document.getElementById("chatInput")?.value?.trim() || "";
+    const first    = rows[0]              ? JSON.stringify(rows[0]).slice(0, 80)              : "";
+    const last     = rows[rows.length-1]  ? JSON.stringify(rows[rows.length-1]).slice(0, 80)  : "";
+    return `${rows.length}|${question.slice(0,120)}|${first}|${last}`;
+}
+
+function _pushToIframe(iframe, data, cached) {
+    iframe.contentWindow.postMessage({
+        type:         "presentationData",
+        slides:       data.slides,
+        client:       data.client,
+        client_id:    data.client_id,
+        pptx_base64:  data.pptx_base64,
+        data_summary: data.data_summary || null,
+        cached,
+    }, "*");
+}
+
+// ── Detect client locally from question + meeting titles ──────────────────────
+// Mirrors the server-side detect_client priority chain (steps 1-4).
+// Returns a best-guess name string or "" if nothing found.
+function _guessClientFromContext(lastResult) {
+    const q = (lastResult.question || document.getElementById("chatInput")?.value || "").toLowerCase();
+
+    // Check meeting titles
+    const titles = (lastResult.data || [])
+        .slice(0, 10)
+        .map(r => (r.MeetingTitle || r.title || "").toLowerCase())
+        .join(" ");
+
+    // Capitalised word(s) in question after trigger phrases
+    const triggerMatch = /(for|about|client|regarding|on)\s+([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Z][A-Za-z0-9&.\-]+)?)/
+        .exec(document.getElementById("chatInput")?.value || "");
+    if (triggerMatch) return triggerMatch[2];
+
+    // Proper noun in question
+    const nounMatch = /\b([A-Z][A-Za-z0-9]+)\b/.exec(
+        document.getElementById("chatInput")?.value || ""
+    );
+    if (nounMatch && !["Show","Give","Me","A","The","PPT","Generate","Create","Build"].includes(nounMatch[1]))
+        return nounMatch[1];
+
+    // First token of meeting title (most frequent)
+    const titleTokens = titles.split(/\s+/).filter(t => t.length > 2 &&
+        !["daily","weekly","cadence","sync","review","meeting","update","sprint"].includes(t));
+    if (titleTokens.length) return titleTokens[0].charAt(0).toUpperCase() + titleTokens[0].slice(1);
+
+    return "";
+}
+
+// ── Email modal helpers ───────────────────────────────────────────────────────
+
+function _showEmailModal(clientName, senders, onConfirm, onSkip) {
+    // Remove any existing modal
+    document.getElementById("_pptEmailModal")?.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "_pptEmailModal";
+    modal.style.cssText = `
+        position:fixed;inset:0;z-index:9999;
+        display:flex;align-items:center;justify-content:center;
+        background:rgba(0,0,0,.55);backdrop-filter:blur(4px)
+    `;
+
+    const hasSenders = senders && senders.length > 0;
+
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:16px;width:440px;max-width:95vw;
+                  box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;font-family:'Outfit',sans-serif">
+
+        <!-- Header -->
+        <div style="background:#0A47A9;padding:18px 24px;display:flex;align-items:center;gap:12px">
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.15);
+                      display:flex;align-items:center;justify-content:center;font-size:18px">📧</div>
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#fff">Include Email Data?</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:2px">
+              Client detected: <strong style="color:#00C7B1">${clientName}</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:20px 24px">
+          ${hasSenders ? `
+            <div style="font-size:13px;color:#4A5568;margin-bottom:14px;line-height:1.5">
+              Found <strong>${senders.length}</strong> sender${senders.length>1?'s':''} with emails
+              for this client. Select which to include:
+            </div>
+            <div id="_senderList" style="display:flex;flex-direction:column;gap:6px;
+                  max-height:180px;overflow-y:auto;padding-right:4px">
+              ${senders.map((s,i) => `
+                <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                       border-radius:8px;border:1px solid #E4E8F0;cursor:pointer;
+                       transition:background .12s" onmouseover="this.style.background='#F8FAFF'"
+                       onmouseout="this.style.background=''">
+                  <input type="checkbox" value="${s}" checked
+                         style="width:15px;height:15px;accent-color:#0A47A9;cursor:pointer">
+                  <span style="font-size:13px;font-weight:500;color:#131A27">${s}</span>
+                </label>`).join("")}
+            </div>` : `
+            <div style="padding:14px;background:#FFF8ED;border-radius:10px;
+                        border:1px solid #FCD34D;font-size:13px;color:#92400E;line-height:1.5">
+              <strong>📭 No emails found</strong> for <em>${clientName}</em> in the
+              database. The PPT will be generated from meeting data only.
+            </div>`}
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:14px 24px 20px;display:flex;gap:10px;justify-content:flex-end;
+                    border-top:1px solid #E4E8F0">
+          <button id="_pptEmailSkip" style="padding:9px 18px;border-radius:8px;
+              border:1.5px solid #E4E8F0;background:#fff;font-size:13px;font-weight:600;
+              color:#6B7280;cursor:pointer;font-family:'Outfit',sans-serif">
+            ${hasSenders ? "Skip emails" : "Generate PPT"}
+          </button>
+          ${hasSenders ? `
+          <button id="_pptEmailConfirm" style="padding:9px 20px;border-radius:8px;
+              border:none;background:#0A47A9;color:#fff;font-size:13px;font-weight:700;
+              cursor:pointer;font-family:'Outfit',sans-serif">
+            Include selected
+          </button>` : ""}
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Wire buttons
+    document.getElementById("_pptEmailSkip").onclick = () => {
+        modal.remove();
+        onSkip();
+    };
+    if (hasSenders) {
+        document.getElementById("_pptEmailConfirm").onclick = () => {
+            const checked = [...modal.querySelectorAll("input[type=checkbox]:checked")]
+                .map(cb => cb.value);
+            modal.remove();
+            if (checked.length) onConfirm(checked);
+            else onSkip();
+        };
+    }
+
+    // Close on backdrop click
+    modal.addEventListener("click", e => {
+        if (e.target === modal) { modal.remove(); onSkip(); }
+    });
+}
+
+// ── Core fetch + generate ─────────────────────────────────────────────────────
+
+async function _fetchAndCachePPT(iframe, lastResult, fingerprint, emailText) {
+    const summary  = (lastResult.insights || []).map(i => i.raw_message || i.message).filter(Boolean);
+    const clientId = window.currentClientId || "";
+    const question = lastResult.question || document.getElementById("chatInput")?.value?.trim() || "";
+
+    try {
+        const res = await fetch("/api/bi-agents/generate-presentation", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                summary,
+                rows:       lastResult.data,
+                client_id:  clientId,
+                question,
+                email_text: emailText || "",
+            }),
+        });
+
+        const data = await res.json();
+
+        if (data.status === "insufficient_data") {
+            iframe.contentWindow.postMessage({
+                type:    "presentationError",
+                message: data.message || "Not enough data to generate a presentation.",
+                icon:    "📊",
+            }, "*");
+            return;
+        }
+        if (data.status !== "success") {
+            iframe.contentWindow.postMessage({
+                type:    "presentationError",
+                message: data.message || "An unexpected error occurred.",
+                icon:    "❌",
+            }, "*");
+            return;
+        }
+
+        window._presentationCache[fingerprint] = { data };
+        _pushToIframe(iframe, data, false);
+
+    } catch (err) {
+        console.error("PPT generation failed:", err);
+        iframe.contentWindow.postMessage({
+            type: "presentationLoading",
+            step: `Error: ${err.message}`
+        }, "*");
+    }
+}
+
+async function _generateWithEmail(iframe, lastResult, fingerprint, senderNames) {
+    const clientName = _guessClientFromContext(lastResult);
+    const question   = lastResult.question || document.getElementById("chatInput")?.value?.trim() || "";
+
+    iframe.contentWindow.postMessage({
+        type: "presentationLoading",
+        step: "Fetching email data…"
+    }, "*");
+
+    try {
+        const res = await fetch("/api/bi-agents/email-fetch", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                client_name:  clientName,
+                sender_names: senderNames,
+                question,
+            }),
+        });
+        const data = await res.json();
+        const emailText = (data.status === "success") ? (data.email_text || "") : "";
+
+        if (data.email_count === 0 || !emailText) {
+            iframe.contentWindow.postMessage({
+                type: "presentationLoading",
+                step: "No emails found for selected senders — generating from meeting data…"
+            }, "*");
+        } else {
+            iframe.contentWindow.postMessage({
+                type: "presentationLoading",
+                step: `Including ${data.email_count} emails in presentation…`
+            }, "*");
+        }
+
+        await _fetchAndCachePPT(iframe, lastResult, fingerprint, emailText);
+
+    } catch (err) {
+        // Email fetch failed — continue without it
+        console.warn("Email fetch failed, proceeding without:", err);
+        iframe.contentWindow.postMessage({
+            type: "presentationLoading",
+            step: "Email fetch failed — generating from meeting data…"
+        }, "*");
+        await _fetchAndCachePPT(iframe, lastResult, fingerprint, "");
+    }
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
+
+async function generatePresentation() {
+    const lastResult = window.agentManager?.lastQueryResult;
+    if (!lastResult?.data?.length) {
+        alert("Please ask a question first to load data.");
+        return;
+    }
+
+    const fingerprint = _pptFingerprint(lastResult);
+    const cached      = window._presentationCache[fingerprint];
+
+    // Open the preview panel
+    showChatPreview("Client Presentation", "/preview/presentation");
+    const iframe = _getActivePreviewIframe();
+
+    iframe.onload = async function () {
+
+        // ── Cache hit: skip everything, re-post instantly ─────────────────
+        if (cached) {
+            console.log("[PPT] Cache hit — reusing existing slides");
+            _pushToIframe(iframe, cached.data, true);
+            return;
+        }
+
+        // ── Cache miss: start flow ────────────────────────────────────────
+        const clientName = _guessClientFromContext(lastResult);
+
+        if (!clientName) {
+            // No client detected — skip email flow, generate directly
+            console.log("[PPT] No client detected — generating without email");
+            iframe.contentWindow.postMessage({ type: "presentationLoading" }, "*");
+            await _fetchAndCachePPT(iframe, lastResult, fingerprint, "");
+            return;
+        }
+
+        // Client detected → check if emails exist in DB
+        iframe.contentWindow.postMessage({
+            type: "presentationLoading",
+            step: `Client detected: ${clientName} — checking email data…`
+        }, "*");
+
+        let senders = [];
+        try {
+            const sr = await fetch("/api/bi-agents/email-senders", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ client_name: clientName }),
+            });
+            const sd = await sr.json();
+            senders = (sd.status === "success") ? (sd.senders || []) : [];
+        } catch (e) {
+            console.warn("[PPT] Sender fetch failed:", e);
+            senders = [];
+        }
+
+        // Show modal (even if no senders — it will show "no emails" message)
+        _showEmailModal(
+            clientName,
+            senders,
+            // onConfirm: user selected sender names
+            async (selectedSenders) => {
+                iframe.contentWindow.postMessage({
+                    type: "presentationLoading",
+                    step: "Loading presentation panel…"
+                }, "*");
+                await _generateWithEmail(iframe, lastResult, fingerprint, selectedSenders);
+            },
+            // onSkip: user said no, or no senders available
+            async () => {
+                iframe.contentWindow.postMessage({
+                    type: "presentationLoading",
+                    step: "Generating presentation…"
+                }, "*");
+                await _fetchAndCachePPT(iframe, lastResult, fingerprint, "");
+            }
+        );
+    };
+}
+
+// ── Regenerate: clears cache, restarts flow ───────────────────────────────────
+window.addEventListener("message", async function (ev) {
+    if (!ev.data || ev.data.type !== "requestRegenerate") return;
+
+    const lastResult = window.agentManager?.lastQueryResult;
+    if (!lastResult?.data?.length) return;
+
+    const fingerprint = _pptFingerprint(lastResult);
+    delete window._presentationCache[fingerprint];
+    console.log("[PPT] Cache cleared — regenerating");
+
+    const iframe = _getActivePreviewIframe();
+    if (!iframe?.contentWindow) return;
+
+    // Re-run the full flow (including email prompt) on regenerate
+    iframe.contentWindow.postMessage({
+        type: "presentationLoading",
+        step: "Regenerating presentation…"
+    }, "*");
+
+    const clientName = _guessClientFromContext(lastResult);
+
+    if (!clientName) {
+        await _fetchAndCachePPT(iframe, lastResult, fingerprint, "");
+        return;
+    }
+
+    let senders = [];
+    try {
+        const sr = await fetch("/api/bi-agents/email-senders", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ client_name: clientName }),
+        });
+        const sd = await sr.json();
+        senders = (sd.status === "success") ? (sd.senders || []) : [];
+    } catch (e) { senders = []; }
+
+    _showEmailModal(
+        clientName,
+        senders,
+        async (selectedSenders) => {
+            await _generateWithEmail(iframe, lastResult, fingerprint, selectedSenders);
+        },
+        async () => {
+            await _fetchAndCachePPT(iframe, lastResult, fingerprint, "");
+        }
+    );
+});
+    // ==========================
+    //  DASHBOARD GENERATE
+    // ==========================
+// ── Dashboard cache ─────────────────────────────────────────────
+window._dashboardCache = window._dashboardCache || new Map();
+
+function _hashRows(rows) {
+    const sample = JSON.stringify(rows.slice(0, 20)) + "|len=" + rows.length;
+
+    let h = 0;
+
+    for (let i = 0; i < sample.length; i++) {
+        h = (Math.imul(31, h) + sample.charCodeAt(i)) | 0;
+    }
+
+    return String(h >>> 0);
+}
+
+// ==========================
+// DASHBOARD GENERATE
+// ==========================
+async function generateDashboard(forceRegenerate = false) {
+
+    const lastResult = window.agentManager?.lastQueryResult;
+
+    if (!lastResult || !lastResult.data || lastResult.data.length === 0) {
+        alert("Please ask a question first.");
+        return;
+    }
+
+    const cacheKey = _hashRows(lastResult.data);
+
+    // ── CACHE HIT ─────────────────────────────
+    if (!forceRegenerate && window._dashboardCache.has(cacheKey)) {
+
+        console.log("[DASHBOARD] Cache hit");
+
+        showChatPreview("Dashboard Preview", "/preview/dashboard");
+
+        const iframe = _getActivePreviewIframe();
+
+        iframe.onload = function () {
+
+            const cached = window._dashboardCache.get(cacheKey);
+
+            iframe.contentWindow.postMessage({
+                type: "dashboardData",
+                config: cached.config,
+                rawData: cached.rawData
+            }, "*");
+
+        };
+
+        return;
+    }
+
+    // ── CACHE MISS ───────────────────────────
+    console.log("[DASHBOARD] Generating fresh dashboard");
+
+    showChatPreview("Dashboard Preview", "/preview/dashboard");
+
+    const iframe = _getActivePreviewIframe();
+
+    iframe.onload = async function () {
+
+        try {
+
+            const res = await fetch('/api/bi-agents/generate-dashboard', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    rows: lastResult.data,
+                    conversation_id: window.agentManager?.currentConversationId || null,
+                    cache_key: cacheKey
+                })
+            });
+
+            const data = await res.json();
+
+            const payload = {
+                config: data.config || data.dashboard_config,
+                rawData: data.rawData || data.raw_data
+            };
+
+            // SAVE CACHE
+            window._dashboardCache.set(cacheKey, payload);
+
+            iframe.contentWindow.postMessage({
+                type: "dashboardData",
+                config: payload.config,
+                rawData: payload.rawData
+            }, "*");
+
+        } catch (err) {
+
+            console.error("Dashboard generation failed:", err);
+
+            alert("Failed to generate dashboard.");
+
+        }
+    };
+}
+
+
+    // ==========================
+    //  REPORT GENERATE
+    // ==========================
+
+// ============================================================
+// REPORT CACHE
+// ============================================================
+window._reportCache = window._reportCache || {};
+
+function _reportFingerprint(lastResult) {
+    if (!lastResult?.data?.length) return null;
+
+    const first = JSON.stringify(lastResult.data[0] || {}).slice(0, 100);
+    const rows  = lastResult.data.length;
+    const q     = lastResult.question || "";
+
+    return `${rows}|${q}|${first}`;
+}
+
+// ============================================================
+// REPORT GENERATE (CACHED)
+// ============================================================
+async function generateReport(forceRegen = false) {
+    const lastResult = window.agentManager?.lastQueryResult;
+
+    if (!lastResult || !lastResult.data) {
+        alert("Please ask a question first.");
+        return;
+    }
+
+    const fingerprint = _reportFingerprint(lastResult);
+
+    // ── CACHE HIT ─────────────────────────────
+    if (!forceRegen && window._reportCache[fingerprint]) {
+
+        console.log("[REPORT] Cache hit");
+
+        showChatPreview("Report Preview", "/preview/report");
+
+        const iframe = _getActivePreviewIframe();
+
+        iframe.onload = function () {
+
+            iframe.contentWindow.postMessage(
+                window._reportCache[fingerprint],
+                "*"
+            );
+
+        };
+
+        return;
+    }
+
+    // ── CACHE MISS ───────────────────────────
+    console.log("[REPORT] Generating fresh report");
+
+    showChatPreview("Report Preview", "/preview/report");
+
+    const iframe = _getActivePreviewIframe();
+
+    iframe.onload = async function () {
+
+        iframe.contentWindow.postMessage({
+            type: "reportLoading"
+        }, "*");
+
+        try {
+
+            const res = await fetch('/api/bi-agents/generate-report', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    rows: lastResult.data,
+                    conversation_id: window.agentManager?.currentConversationId || null,
+                    cache_key: fingerprint
+                })
+            });
+
+            const data = await res.json();
+
+            let rows = data.raw_data || [];
+            let columns = rows.length > 0
+                ? Object.keys(rows[0])
+                : [];
+
+            const payload = {
+                type: "reportData",
+                config: data.report_config?.header || {},
+                columns: columns,
+                rows: rows
+            };
+
+            // SAVE CACHE
+            window._reportCache[fingerprint] = payload;
+
+            // SEND TO IFRAME
+            iframe.contentWindow.postMessage(payload, "*");
+
+        } catch (err) {
+
+            console.error("Report generation failed:", err);
+
+            iframe.contentWindow.postMessage({
+                type: "reportError",
+                error: err.message
+            }, "*");
+        }
+    };
+}
+
+
+    // ==========================
+    //  INFOGRAPHIC GENERATE
+    // ==========================
+// ═══════════════════════════════════════════════════════════════════════════
+//  INFOGRAPHIC CACHE PATCH  —  drop this into model.html
+//  Replace the existing generateInfographic() function with this block.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Cache store (lives as long as the page) ──────────────────────────────
+// Key  : stable fingerprint of the result set (agent + question + row-count)
+// Value: { infographic: <layout object>, timestamp: Date }
+window._infographicCache = window._infographicCache || {};
+
+/**
+ * Build a cheap stable key from the last query result.
+ * We use agent name + question text + row count — no hashing needed.
+ */
+function _infographicCacheKey(lastResult) {
+    if (!lastResult) return null;
+    const agent    = lastResult.agent_name  || window.currentAgentName || '';
+    const question = lastResult.question    || '';
+    const rows     = (lastResult.data || []).length;
+    return `${agent}||${question}||${rows}`;
+}
+
+// ==========================
+//  INFOGRAPHIC GENERATE  (patched)
+// ==========================
+async function generateInfographic() {
+    const lastResult = window.agentManager?.lastQueryResult;
+
+    if (!lastResult || !lastResult.insights || lastResult.insights.length === 0) {
+        alert("No summary available. Ask a question first.");
+        return;
+    }
+
+    const cacheKey = _infographicCacheKey(lastResult);
+
+    // ── If we already have a cached infographic for this result, show it ──
+    if (cacheKey && window._infographicCache[cacheKey]) {
+        console.log("[infographic] Cache hit — reusing existing layout");
+        _openInfographicPreview(window._infographicCache[cacheKey].infographic, cacheKey);
+        return;
+    }
+
+    // ── No cache — generate fresh ─────────────────────────────────────────
+    await _fetchAndShowInfographic(lastResult, cacheKey);
+}
+
+/**
+ * Open the preview panel and push cached data into the iframe immediately.
+ * Also injects the Regenerate button into the iframe after it loads.
+ */
+function _openInfographicPreview(infographicData, cacheKey) {
+    showChatPreview("Infographic Preview", "/preview/infographic");
+
+    const iframe = _getActivePreviewIframe();
+    iframe.onload = () => {
+        // Send cached data
+        iframe.contentWindow.postMessage({
+            type:        "infographicData",
+            infographic: infographicData,
+        }, "*");
+
+        // Inject Regenerate button after a short paint delay
+        setTimeout(() => _injectRegenerateButton(iframe, cacheKey), 600);
+    };
+}
+
+/**
+ * Call the API, cache the result, show it, inject Regenerate button.
+ */
+async function _fetchAndShowInfographic(lastResult, cacheKey) {
+    showChatPreview("Infographic Preview", "/preview/infographic");
+
+    const iframe = _getActivePreviewIframe();
+
+    iframe.onload = async function () {
+        // Show a loading indicator inside the iframe while we fetch
+        iframe.contentWindow.postMessage({ type: "infographicLoading" }, "*");
+
+        try {
+            const res = await fetch('/api/bi-agents/generate-infographic', {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    summary:    lastResult.insights.map(i => i.raw_message || i.message),
+                    rows:       lastResult.data,
+                    agent_name: window.currentAgentName || '',
+                    conversation_id: window.agentManager?.currentConversationId || null,
+                    cache_key: cacheKey,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.status !== "success" || !data.infographic) {
+                iframe.contentWindow.postMessage({
+                    type:  "infographicError",
+                    error: data.message || "Generation failed",
+                }, "*");
+                return;
+            }
+
+            // ── Cache it ──────────────────────────────────────────────────
+            if (cacheKey) {
+                window._infographicCache[cacheKey] = {
+                    infographic: data.infographic,
+                    timestamp:   new Date(),
+                };
+                console.log("[infographic] Cached under key:", cacheKey);
+            }
+
+            // ── Send to iframe ────────────────────────────────────────────
+            iframe.contentWindow.postMessage({
+                type:        "infographicData",
+                infographic: data.infographic,
+            }, "*");
+
+            // Inject Regenerate button
+            setTimeout(() => _injectRegenerateButton(iframe, cacheKey), 600);
+
+        } catch (err) {
+            console.error("Infographic generation failed:", err);
+            iframe.contentWindow.postMessage({
+                type:  "infographicError",
+                error: err.message,
+            }, "*");
+        }
+    };
+}
+
+/**
+ * Inject a "⟳ Regenerate" button into the iframe's toolbar.
+ * Clicking it busts the cache entry and re-fetches.
+ */
+function _injectRegenerateButton(iframe, cacheKey) {
+    try {
+        const iDoc    = iframe.contentDocument || iframe.contentWindow.document;
+        const toolbar = iDoc.querySelector('.toolbar');
+        if (!toolbar) return;
+
+        // Don't add twice
+        if (iDoc.getElementById('regen-btn')) return;
+
+        const btn = iDoc.createElement('button');
+        btn.id        = 'regen-btn';
+        btn.innerHTML = '⟳ Regenerate';
+        btn.style.cssText = `
+            display:flex; align-items:center; gap:6px;
+            padding:8px 16px; border:1px solid rgba(108,142,255,.4); border-radius:9px;
+            background:rgba(108,142,255,.1); color:#A5B4FC;
+            font-family:'Syne',sans-serif; font-size:.82rem; font-weight:700;
+            cursor:pointer; transition:background .2s, transform .15s;
+            margin-right:8px;
+        `;
+        btn.onmouseenter = () => { btn.style.background = 'rgba(108,142,255,.22)'; };
+        btn.onmouseleave = () => { btn.style.background = 'rgba(108,142,255,.1)';  };
+
+        btn.onclick = async () => {
+            // Bust cache
+            if (cacheKey && window._infographicCache[cacheKey]) {
+                delete window._infographicCache[cacheKey];
+                console.log("[infographic] Cache busted:", cacheKey);
+            }
+
+            // Show spinner in the iframe
+            const root = iDoc.getElementById('ig-root');
+            if (root) {
+                root.innerHTML = `
+                    <div class="ig-loading" style="grid-column:span 12">
+                        <div class="spinner"></div>Regenerating…
+                    </div>`;
+            }
+
+            // Disable button during fetch
+            btn.disabled     = true;
+            btn.innerHTML    = '⟳ Regenerating…';
+            btn.style.opacity = '0.55';
+
+            const lastResult = window.agentManager?.lastQueryResult;
+            if (!lastResult) return;
+
+            try {
+                const res = await fetch('/api/bi-agents/generate-infographic', {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        summary:    lastResult.insights.map(i => i.raw_message || i.message),
+                        rows:       lastResult.data,
+                        agent_name: window.currentAgentName || '',
+                    }),
+                });
+
+                const data = await res.json();
+
+                if (data.status !== "success" || !data.infographic) {
+                    alert("Regeneration failed: " + (data.message || "unknown error"));
+                    btn.disabled     = false;
+                    btn.innerHTML    = '⟳ Regenerate';
+                    btn.style.opacity = '1';
+                    return;
+                }
+
+                // Update cache with fresh data
+                const newKey = _infographicCacheKey(lastResult);
+                if (newKey) {
+                    window._infographicCache[newKey] = {
+                        infographic: data.infographic,
+                        timestamp:   new Date(),
+                    };
+                }
+
+                // Re-render inside iframe
+                iframe.contentWindow.postMessage({
+                    type:        "infographicData",
+                    infographic: data.infographic,
+                }, "*");
+
+                btn.disabled     = false;
+                btn.innerHTML    = '⟳ Regenerate';
+                btn.style.opacity = '1';
+
+            } catch (err) {
+                console.error("Regenerate failed:", err);
+                btn.disabled     = false;
+                btn.innerHTML    = '⟳ Regenerate';
+                btn.style.opacity = '1';
+            }
+        };
+
+        // Insert before the Download PDF button
+        const dlBtn = toolbar.querySelector('.btn-dl');
+        if (dlBtn) {
+            toolbar.insertBefore(btn, dlBtn);
+        } else {
+            toolbar.appendChild(btn);
+        }
+    } catch (e) {
+        console.warn("[infographic] Could not inject regenerate button:", e);
+    }
+}
+
+// ── Also handle the infographicLoading / infographicError postMessages
+//    in the iframe (infographiclayout.html already handles infographicData)
+// ── Add this once to the parent window message listener so it doesn't
+//    interfere with the existing handler.
+(function patchMessageListener() {
+    const _origHandler = window._infographicMsgHandler;
+    if (_origHandler) return; // already patched
+
+    window._infographicMsgHandler = true;
+    // The existing window.addEventListener('message', ...) in model.html
+    // handles "infographicData" — no change needed there.
+    // The iframe itself handles "infographicLoading" and "infographicError"
+    // via its own message listener added below in infographiclayout.html.
+})();
+
+    // =============== PDF helper functions (unchanged) ===============
+    async function downloadDashboardPDF() {
+        const iframe = document.querySelector("#dashboardPreviewBody iframe");
+        if (!iframe) {
+            alert("Dashboard preview not loaded.");
+            return;
+        }
+
+        const dashboardDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const dashboardElement = dashboardDoc.getElementById("dashboard");
+
+        if (!dashboardElement) {
+            alert("No dashboard found to print.");
+            return;
+        }
+
+        const canvas = await html2canvas(dashboardElement);
+        const imgData = canvas.toDataURL("image/png");
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const imgWidth = pageWidth;
+        const imgHeight = canvas.height * (pageWidth / canvas.width);
+
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+        pdf.save("dashboard.pdf");
+    }
+
+    async function downloadReportPDF() {
+        const iframe = document.querySelector("#reportPreviewBody iframe");
+        if (!iframe) return alert("Report preview not loaded.");
+
+        const reportDoc = iframe.contentDocument || iframe.contentWindow.document;
+        const reportElement = reportDoc.querySelector(".report-container");
+
+        if (!reportElement) {
+            alert("Report content missing");
+            return;
+        }
+
+        const canvas = await html2canvas(reportElement);
+        const imgData = canvas.toDataURL("image/png");
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF("p", "mm", "a4");
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const imgWidth = pageWidth;
+        const imgHeight = canvas.height * (pageWidth / canvas.width);
+
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+        pdf.save("report_downloaded.pdf");
+    }
+
+
+// ============================================================
+// DASHBOARD REGENERATE LISTENER
+// ============================================================
+window.addEventListener("message", async function (event) {
+
+    if (!event.data) return;
+
+    if (event.data.type !== "regenerateDashboard") return;
+
+    const lastResult = window.agentManager?.lastQueryResult;
+
+    if (!lastResult?.data?.length) return;
+
+    const cacheKey = _hashRows(lastResult.data);
+
+    // CLEAR CACHE
+    window._dashboardCache.delete(cacheKey);
+
+    console.log("[DASHBOARD] Cache cleared");
+
+    // FORCE REGENERATE
+    await generateDashboard(true);
+
+});
+
+
+// ============================================================
+// REPORT REGENERATE LISTENER
+// ============================================================
+window.addEventListener("message", async function (ev) {
+
+    if (!ev.data) return;
+
+    if (ev.data.type !== "requestRegenerate") return;
+
+    if (ev.data.tool !== "report") return;
+
+    const lastResult = window.agentManager?.lastQueryResult;
+
+    if (!lastResult?.data?.length) return;
+
+    const fingerprint = _reportFingerprint(lastResult);
+
+    // CLEAR CACHE
+    delete window._reportCache[fingerprint];
+
+    console.log("[REPORT] Cache cleared");
+
+    // FORCE REGENERATE
+    await generateReport(true);
+
+});
+
+
+
+    // ==========================
+    //  SHOW / HIDE PREVIEW (IN-CHAT) + RESIZER
+    // ==========================
+
+    // Returns the active preview iframe — hub panel takes priority over the BI chat panel.
+    function _getActivePreviewIframe() {
+        return document.querySelector('#hubPreviewContent iframe')
+            || document.querySelector('#previewContent iframe');
+    }
+
+    function showChatPreview(title, iframeSrc) {
+        // ── Hub agent chat page ──────────────────────────────────────────────
+        const hubPanel = document.getElementById('hubPreviewPanel');
+        if (hubPanel) {
+            const hubContent = document.getElementById('hubPreviewContent');
+            const hubTitle   = document.getElementById('hubPreviewTitle');
+            if (hubTitle)   hubTitle.textContent  = title || 'Preview';
+            if (hubContent) hubContent.innerHTML  =
+                `<iframe src="${iframeSrc}" frameborder="0" style="width:100%;height:100%;"></iframe>`;
+            hubPanel.classList.add('open');
+            return;
+        }
+        // ── Standard BI agent page ───────────────────────────────────────────
+        const preview = document.getElementById("chatPreviewPanel");
+        const previewContent = document.getElementById("previewContent");
+        const main = document.getElementById("chatMainArea");
+
+        document.getElementById("previewTitle").innerText = title || "Preview";
+
+        // inject iframe
+        previewContent.innerHTML = `<iframe src="${iframeSrc}" frameborder="0" style="width:100%; height:100%;"></iframe>`;
+
+        // show preview
+        preview.classList.remove("d-none");
+        preview.setAttribute("aria-hidden", "false");
+
+        main.classList.add("with-preview");
+    }
+
+    document.getElementById("closePreviewBtn").addEventListener("click", () => {
+        const preview = document.getElementById("chatPreviewPanel");
+        const main = document.getElementById("chatMainArea");
+
+        preview.classList.add("d-none");
+        preview.setAttribute("aria-hidden", "true");
+        // remove any inline width so next open uses default
+        preview.style.width = "";
+        main.classList.remove("with-preview");
+    });
+
+    // ============== Resizer logic ==============
+    (function () {
+        const preview = document.getElementById("chatPreviewPanel");
+        const resizer = document.getElementById("previewResizer");
+        const iframe = () => _getActivePreviewIframe();
+
+        let isResizing = false;
+
+        function startResize(e) {
+            isResizing = true;
+            document.body.style.cursor = "ew-resize";
+
+            // 🔥 prevent iframe from blocking events
+            if (iframe()) iframe().style.pointerEvents = "none";
+
+            e.preventDefault();
+        }
+
+        function resizing(e) {
+            if (!isResizing) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+
+            const newWidth = Math.max(
+                300,
+                Math.min(window.innerWidth * 0.7, window.innerWidth - clientX)
+            );
+            preview.style.width = newWidth + "px";
+        }
+
+        function stopResize() {
+            if (!isResizing) return;
+
+            isResizing = false;
+            document.body.style.cursor = "";
+
+            // 🔥 enable iframe again
+            if (iframe()) iframe().style.pointerEvents = "auto";
+        }
+
+        // mouse
+        resizer.addEventListener("mousedown", startResize);
+        window.addEventListener("mousemove", resizing);
+        window.addEventListener("mouseup", stopResize);
+
+        // touch
+        resizer.addEventListener("touchstart", startResize);
+        window.addEventListener("touchmove", resizing);
+        window.addEventListener("touchend", stopResize);
+    })();
+
+</script>
+
+{% endblock %}

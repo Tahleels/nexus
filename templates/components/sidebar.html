@@ -1,0 +1,600 @@
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <div style="display:flex;align-items:flex-end;gap:.5rem;margin-bottom:4px;">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo"
+                 style="height:26px;flex-shrink:0;display:block;">
+            <span style="font-size:1.12rem;font-weight:700;color:#fff;overflow:hidden;
+                         text-overflow:ellipsis;white-space:nowrap;line-height:1;
+                         margin-top:8px;">Nexus</span>
+        </div>
+        <div style="font-size:.68rem;color:rgba(255,255,255,.45);padding-left:1px;
+                    font-style:italic;letter-spacing:.01em;">
+            AI Data to make your job exciting!
+        </div>
+    </div>
+
+    <!-- URLs + role baked in by Jinja for the dynamic dept nav JS -->
+    <script id="sidebarMeta" type="application/json">
+    {
+        "role": "{{ current_user.role if current_user else 'user' }}",
+        "chatPage":        "{{ url_for('agents_hub.hub_chat_page') }}",
+        "biAgents":        "{{ url_for('bi_agents') }}",
+        {% if approval_enabled %}"approvalsPage":   "{{ url_for('agents_hub.approvals_page') }}",{% endif %}
+        "jobsPage":        "{{ url_for('jobs_page') }}",
+        "jobMonitor":      "{{ url_for('job_monitor') }}",
+        "fusionAgents":    "{{ url_for('agents_hub.hub_agents_page') }}",
+        "fusionWorkflows": "{{ url_for('agents_hub.hub_workflows_page') }}",
+        "fusionTools":     "{{ url_for('agents_hub.hub_tools_page') }}",
+        "fusionCreateTool":"{{ url_for('agents_hub.custom_tools_page') }}",
+        "fusionKnowledge": "{{ url_for('agents_hub.hub_knowledge_page') }}",
+        "fusionAnalytics": "{{ url_for('agents_hub.hub_analytics_page') }}",
+        "fusionActivity":  "{{ url_for('agents_hub.hub_agent_activity_page') }}",
+        "dbConnections":   "{{ url_for('database_connections') }}",
+        "hubJobs":         "{{ url_for('agents_hub.hub_jobs_page') }}",
+        "hubToolJobs":     "{{ url_for('agents_hub.hub_tool_jobs_page') }}",
+        "hubToolMonitor":  "{{ url_for('agents_hub.hub_tool_job_monitor_page') }}",
+        "workspaceChat":   "{{ url_for('workspace.workspace_chat') }}",
+        "wsProjects":      "{{ url_for('workspace.workspace_projects') }}",
+        "wsSavedChats":    "{{ url_for('workspace.workspace_saved_chats') }}",
+        "wsPromptLibrary": "{{ url_for('workspace.workspace_prompt_library') }}",
+        "wsArtifacts":     "{{ url_for('workspace.workspace_artifacts') }}",
+        "wsMemory":        "{{ url_for('workspace.workspace_memory') }}",
+        "wsSettings":      "{{ url_for('workspace.workspace_settings') }}",
+        "wsTeam":          "{{ url_for('workspace.workspace_team') }}",
+        "wsActivity":      "{{ url_for('workspace.workspace_activity') }}",
+        "wsAnalytics":     "{{ url_for('workspace.workspace_analytics') }}",
+        "wsTraining":      "{{ url_for('training.training_page') }}"
+    }
+    </script>
+
+    <div class="sidebar-nav">
+        <!-- Dashboard always at top -->
+        <div class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+                href="{{ url_for('dashboard') }}">
+                <i class="fas fa-tachometer-alt"></i>
+                Dashboard
+            </a>
+        </div>
+
+        <!-- ── Departments & Projects nav (dynamic, injected by JS) ── -->
+        <div id="deptNavSection"></div>
+        <!-- ──────────────────────────────────────────────────────────── -->
+
+
+
+        <!-- Connector — admin + dev -->
+        {% if current_user and current_user.role in ('admin', 'dev') %}
+        <div class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'knowledge.connector_page' %}active{% endif %}"
+               href="{{ url_for('knowledge.connector_page') }}">
+                <i class="fas fa-plug"></i>
+                Connector
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Admin-only section -->
+        {% if current_user and current_user.role == 'admin' %}
+        <div class="nav-item">
+            <a class="nav-link {% if request.endpoint in ['admin_users', 'admin_clients', 'admin_assignments', 'admin_departments', 'admin_nexus_mapping', 'admin_token_quotas', 'agents_hub.hub_assignments_page', 'knowledge.rag_dashboard', 'admin_conversations.admin_conversations_page'] %}active{% endif %}"
+                href="#" onclick="toggleSubmenu('admin-submenu'); return false;">
+                <i class="fas fa-shield-alt"></i>
+                Admin
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="nav-submenu {% if request.endpoint in ['admin_users', 'admin_clients', 'admin_assignments', 'admin_departments', 'admin_nexus_mapping', 'admin_token_quotas', 'agents_hub.hub_assignments_page', 'knowledge.rag_dashboard', 'admin_conversations.admin_conversations_page'] %}show{% endif %}"
+                 id="admin-submenu">
+                <a class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}"
+                    href="{{ url_for('admin_users') }}">
+                    <i class="fas fa-users-cog"></i>
+                    User Management
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_conversations.admin_conversations_page' %}active{% endif %}"
+                    href="{{ url_for('admin_conversations.admin_conversations_page') }}">
+                    <i class="fas fa-user-shield"></i>
+                    Conversation Supervisor
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_token_quotas' %}active{% endif %}"
+                    href="{{ url_for('admin_token_quotas') }}">
+                    <i class="fas fa-coins"></i>
+                    Token Quotas
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_departments' %}active{% endif %}"
+                    href="{{ url_for('admin_departments') }}">
+                    <i class="fas fa-sitemap"></i>
+                    Departments &amp; Projects
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_nexus_mapping' %}active{% endif %}"
+                    href="{{ url_for('admin_nexus_mapping') }}">
+                    <i class="fas fa-link"></i>
+                    Portal Mapping
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_assignments' %}active{% endif %}"
+                    href="{{ url_for('admin_assignments') }}">
+                    <i class="fas fa-chart-bar"></i>
+                    BI Agent Assignment
+                </a>
+                <a class="nav-link {% if request.endpoint == 'agents_hub.hub_assignments_page' %}active{% endif %}"
+                    href="{{ url_for('agents_hub.hub_assignments_page') }}">
+                    <i class="fas fa-user-tag"></i>
+                    Agent Assignment
+                </a>
+                <a class="nav-link {% if request.endpoint == 'admin_clients' %}active{% endif %}"
+                    href="{{ url_for('admin_clients') }}">
+                    <i class="fas fa-building"></i>
+                    Clients
+                </a>
+                <a class="nav-link {% if request.endpoint == 'knowledge.rag_dashboard' %}active{% endif %}"
+                    href="{{ url_for('knowledge.rag_dashboard') }}">
+                    <i class="fas fa-database"></i>
+                    RAG Dashboard
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+
+
+    <!-- User info + logout pinned to bottom -->
+    <div class="sidebar-footer" style="margin-top: auto;">
+        {% if current_user %}
+        <div class="d-flex align-items-center gap-2 mb-2" style="color: rgba(255,255,255,.75); font-size: .85rem;">
+            <div class="user-avatar" style="
+                width: 32px; height: 32px; border-radius: 8px;
+                background: var(--sidebar-active-bg);
+                border: 1px solid var(--sidebar-active-bar);
+                display: flex; align-items: center; justify-content: center;
+                font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+                color: var(--sidebar-text-active); font-size: .85rem;">
+                {{ current_user.username[0] }}
+            </div>
+            <div style="min-width:0;">
+                <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    {{ current_user.username }}
+                </div>
+                <div style="font-size:.75rem; opacity:.7; text-transform:capitalize;">
+                    {{ current_user.role }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Token usage bar -->
+        <div id="tokenUsageWrap" style="margin-bottom:.75rem;">
+            <div
+                style="display:flex;justify-content:space-between;font-size:.72rem;color:rgba(255,255,255,.6);margin-bottom:3px;">
+                <span>Daily tokens</span>
+                <span id="tokenUsageLabel">—</span>
+            </div>
+            <div style="background:rgba(255,255,255,.15);border-radius:4px;height:5px;overflow:hidden;">
+                <div id="tokenUsageBar"
+                    style="height:100%;width:0%;background:#22c55e;border-radius:4px;transition:width .4s,background .4s;">
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <button data-bs-toggle="modal" data-bs-target="#changePasswordModal"
+            style="display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.7);font-size:.85rem;margin-bottom:2px;transition:background .15s;">
+            <i class="fas fa-key" style="width:16px;text-align:center;"></i>
+            <span>Change Password</span>
+        </button>
+
+        <button onclick="mxToggleTheme()" title="Toggle light/dark theme" aria-label="Toggle theme"
+            style="display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:8px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.7);font-size:.85rem;margin-bottom:2px;transition:background .15s;">
+            <i id="themeIcon" class="fas fa-moon" style="width:16px;text-align:center;"></i>
+            <span id="themeLabel">Dark Mode</span>
+        </button>
+
+        <a class="nav-link" href="#" onclick="doLogout(); return false;" style="color: rgba(255,255,255,.7);">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+        </a>
+    </div>
+</nav>
+
+<script>
+    // Approval badges are now per-dept, handled by pollDeptApprovalBadges() in buildDeptNav
+
+    async function doLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+    }
+
+    // ── Token usage bar ───────────────────────────────────────────
+    (async function loadTokenUsage() {
+        const bar = document.getElementById('tokenUsageBar');
+        const label = document.getElementById('tokenUsageLabel');
+        if (!bar || !label) return;
+
+        try {
+            const res = await fetch('/api/auth/token-usage');
+            const data = await res.json();
+
+            const used = data.used_today || 0;
+            const limit = data.limit || 1;
+            const remaining = data.remaining || 0;
+            const pct = Math.min(100, Math.round((used / limit) * 100));
+
+            label.textContent = `${used.toLocaleString()} / ${limit.toLocaleString()}`;
+            bar.style.width = pct + '%';
+
+            // colour: green → amber → red
+            if (pct >= 90) bar.style.background = '#ef4444';
+            else if (pct >= 70) bar.style.background = '#f59e0b';
+            else bar.style.background = '#22c55e';
+
+        } catch (e) {
+            // silently fail — don't break the sidebar
+        }
+    })();
+
+    // ── Departments & Projects nav with full sub-tabs ─────────────────
+    (function () {
+        // Read URLs + role baked in by Jinja
+        const _meta = JSON.parse(document.getElementById('sidebarMeta').textContent);
+        const role   = _meta.role;
+        const isDevAdmin = role === 'admin' || role === 'dev';
+
+        // Current URL state for active-link detection
+        const _path   = window.location.pathname;
+        const _params = new URLSearchParams(window.location.search);
+        const curDept = _params.get('dept_id')    ? +_params.get('dept_id')    : null;
+        const curProj = _params.get('project_id') ? +_params.get('project_id') : null;
+
+        function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        function isActive(url) {
+            try {
+                const u = new URL(url, window.location.origin);
+                if (u.pathname !== _path) return false;
+                if (u.searchParams.get('dept_id') && u.searchParams.get('dept_id') !== String(curDept)) return false;
+                if (u.searchParams.get('project_id') && u.searchParams.get('project_id') !== String(curProj)) return false;
+                return true;
+            } catch { return false; }
+        }
+
+        // Build sub-tab HTML for a given context (dept_id or project_id)
+        function mkSubTabs(ctxParam, ctxId, prefix) {
+            const q           = `?${ctxParam}=${ctxId}`;   // context query string
+            const chatUrl     = `${_meta.chatPage}${q}`;
+            const biUrl       = `${_meta.biAgents}${q}`;
+            {% if approval_enabled %}const approvalsUrl= `${_meta.approvalsPage}${q}`;{% endif %}
+            const jobsPageUrl = `${_meta.jobsPage}${q}`;
+            // Nexus AI Hub + Jobs sub-links carry dept context so resources auto-assign
+            const fusAgents   = `${_meta.fusionAgents}${q}`;
+            const fusWf       = `${_meta.fusionWorkflows}${q}`;
+            const fusTools    = `${_meta.fusionTools}${q}`;
+            const fusCreate   = `${_meta.fusionCreateTool}${q}`;
+            const fusKnow     = `${_meta.fusionKnowledge}${q}`;
+            const fusAna      = `${_meta.fusionAnalytics}${q}`;
+            const fusAct      = `${_meta.fusionActivity}${q}`;
+            const hubJobsUrl  = `${_meta.hubJobs}${q}`;
+            const hubTJobsUrl = `${_meta.hubToolJobs}${q}`;
+
+            const agSubId  = `${prefix}_ag`;
+            const jobSubId = `${prefix}_job`;
+            const fusSubId = `${prefix}_if`;
+            const srcSubId = `${prefix}_src`;
+
+            // Determine which inner submenus should start open
+            const onChat      = isActive(chatUrl);
+            const onBI        = isActive(biUrl);
+            {% if approval_enabled %}const onApprovals = isActive(approvalsUrl);{% endif %}
+            const onJobs      = isActive(jobsPageUrl) ||
+                                _path === new URL(_meta.jobMonitor,    window.location.origin).pathname;
+            const onFusion    = [fusAgents,fusWf,fusTools,fusCreate,fusKnow,fusAna,fusAct]
+                                .some(u => isActive(u));
+            const onSource    = _path === new URL(_meta.dbConnections, window.location.origin).pathname;
+
+            let html = '';
+
+            {% if approval_enabled %}
+            // Approvals — first
+            html += `
+            <a class="nav-link${onApprovals?' active':''}" href="${esc(approvalsUrl)}"
+               style="display:flex;align-items:center;gap:8px;">
+              <i class="fas fa-check-double" style="width:14px;text-align:center;"></i>
+              Approvals
+              <span class="dept-approval-badge badge bg-danger ms-auto"
+                    data-ctx="${ctxParam}:${ctxId}"
+                    style="display:none;font-size:.65rem;"></span>
+            </a>`;
+            {% endif %}
+
+            // Agents (Agent Chat + BI Agents) — admin/dev only
+            if (isDevAdmin) {
+                html += `
+            <div class="nav-item">
+              <a class="nav-link${onChat||onBI?' active':''}" href="#"
+                 onclick="toggleSubmenu('${agSubId}'); return false;">
+                <i class="fas fa-robot"></i> Agents
+                <i class="fas fa-chevron-down ms-auto"></i>
+              </a>
+              <div class="nav-submenu${onChat||onBI?' show':''}" id="${agSubId}">
+                <a class="nav-link${onChat?' active':''}" href="${esc(chatUrl)}">
+                  <i class="fas fa-comments"></i> Agent Chat
+                </a>
+                <a class="nav-link${onBI?' active':''}" href="${esc(biUrl)}">
+                  <i class="fas fa-chart-bar"></i> BI Agents
+                </a>
+              </div>
+            </div>`;
+            }
+
+            // Jobs (admin/dev only)
+            if (isDevAdmin) {
+            html += `
+            <div class="nav-item">
+              <a class="nav-link${onJobs?' active':''}" href="#"
+                 onclick="toggleSubmenu('${jobSubId}'); return false;">
+                <i class="fas fa-clock"></i> Jobs
+                <i class="fas fa-chevron-down ms-auto"></i>
+              </a>
+              <div class="nav-submenu${onJobs?' show':''}" id="${jobSubId}">
+                <a class="nav-link" href="${esc(jobsPageUrl)}">
+                  <i class="fas fa-list-check"></i> BI Jobs
+                </a>
+                <a class="nav-link" href="${esc(_meta.jobMonitor)}">
+                  <i class="fas fa-desktop"></i> BI Job Monitor
+                </a>
+                <a class="nav-link${isActive(hubJobsUrl)?' active':''}" href="${esc(hubJobsUrl)}">
+                  <i class="fas fa-robot"></i> Agent Scheduler
+                </a>
+                <a class="nav-link${isActive(hubTJobsUrl)?' active':''}" href="${esc(hubTJobsUrl)}">
+                  <i class="fas fa-tools"></i> Tool Jobs
+                </a>
+                <a class="nav-link" href="${esc(_meta.hubToolMonitor)}">
+                  <i class="fas fa-chart-line"></i> Tool Job Monitor
+                </a>
+              </div>
+            </div>`;
+            }
+
+            // Nexus AI Hub (admin/dev only)
+            if (isDevAdmin) {
+                html += `
+            <div class="nav-item">
+              <a class="nav-link${onFusion?' active':''}" href="#"
+                 onclick="toggleSubmenu('${fusSubId}'); return false;">
+                <i class="fas fa-microchip"></i> Nexus AI Hub
+                <i class="fas fa-chevron-down ms-auto"></i>
+              </a>
+              <div class="nav-submenu${onFusion?' show':''}" id="${fusSubId}">
+                <a class="nav-link${isActive(fusAgents)?' active':''}" href="${esc(fusAgents)}"><i class="fas fa-robot"></i> Agents</a>
+                <a class="nav-link${isActive(fusWf)?    ' active':''}" href="${esc(fusWf)}"><i class="fas fa-project-diagram"></i> Workflows</a>
+                <a class="nav-link${isActive(fusTools)?  ' active':''}" href="${esc(fusTools)}"><i class="fas fa-tools"></i> Tools</a>
+                <a class="nav-link${isActive(fusCreate)?' active':''}" href="${esc(fusCreate)}"><i class="fas fa-wrench"></i> Create Tool</a>
+                <a class="nav-link${isActive(fusKnow)?  ' active':''}" href="${esc(fusKnow)}"><i class="fas fa-book"></i> Knowledge Base</a>
+                <a class="nav-link${isActive(fusAna)?   ' active':''}" href="${esc(fusAna)}"><i class="fas fa-sack-dollar"></i> Money</a>
+                <a class="nav-link${isActive(fusAct)?   ' active':''}" href="${esc(fusAct)}"><i class="fas fa-microscope"></i> Agent Activity</a>
+              </div>
+            </div>`;
+
+                // Source
+                html += `
+            <div class="nav-item">
+              <a class="nav-link${onSource?' active':''}" href="#"
+                 onclick="toggleSubmenu('${srcSubId}'); return false;">
+                <i class="fas fa-database"></i> Source
+                <i class="fas fa-chevron-down ms-auto"></i>
+              </a>
+              <div class="nav-submenu${onSource?' show':''}" id="${srcSubId}">
+                <a class="nav-link" href="${esc(_meta.dbConnections)}">
+                  <i class="fas fa-plug"></i> Database Connections
+                </a>
+              </div>
+            </div>`;
+            }
+
+            return html;
+        }
+
+        const _ORG_CACHE_KEY = 'mx-org-nav-cache';
+
+        function renderDeptNavFromData(section, data) {
+            const { departments, projects } = data;
+            // R&D is a real department now — only render the Workspace nav if assigned to it
+            const rndDept    = departments.find(d => d.name === 'R&D');
+            const otherDepts = departments.filter(d => d !== rndDept);
+
+            // Section divider — same visual weight as the static nav separators
+            let html = `<div class="nav-section-label" style="
+                            font-size:.62rem;font-weight:700;text-transform:uppercase;
+                            letter-spacing:.7px;color:rgba(255,255,255,.3);
+                            padding:12px 14px 4px;
+                            border-top:1px solid rgba(255,255,255,.07);
+                            margin-top:6px;">Departments</div>`;
+
+            if (rndDept) {
+            // AI Workspace — pinned at top as a department (red dot, chevron, full submenu)
+            const wsUrls = [_meta.workspaceChat, _meta.wsProjects, _meta.wsSavedChats,
+                            _meta.wsPromptLibrary, _meta.wsArtifacts, _meta.wsMemory,
+                            _meta.wsSettings, _meta.wsTeam, _meta.wsActivity,
+                            _meta.wsAnalytics, _meta.wsTraining];
+            const wsOpen = wsUrls.some(u => _path === new URL(u, window.location.origin).pathname);
+            const wsSubId = 'ds_workspace';
+
+            let wsSubmenu = `
+              <a class="nav-link${_path===new URL(_meta.workspaceChat,window.location.origin).pathname?' active':''}" href="${esc(_meta.workspaceChat)}">
+                <i class="fas fa-comment-dots"></i> Chat
+              </a>
+              <a class="nav-link${_path===new URL(_meta.wsProjects,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsProjects)}">
+                <i class="fas fa-folder-open"></i> Projects
+              </a>
+              <a class="nav-link${_path===new URL(_meta.wsSavedChats,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsSavedChats)}">
+                <i class="fas fa-bookmark"></i> Saved Chats
+              </a>
+              <a class="nav-link${_path===new URL(_meta.wsPromptLibrary,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsPromptLibrary)}">
+                <i class="fas fa-book"></i> Prompt Library
+              </a>
+              <a class="nav-link${_path===new URL(_meta.wsArtifacts,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsArtifacts)}">
+                <i class="fas fa-layer-group"></i> Artifacts
+              </a>`;
+
+            if (isDevAdmin) {
+                wsSubmenu += `
+              <div style="border-top:1px solid rgba(255,255,255,.08);margin:4px 0;padding-top:2px;">
+                <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+                             color:rgba(255,255,255,.3);padding:4px 14px 2px;display:block;">Management</span>
+                <a class="nav-link${_path===new URL(_meta.wsMemory,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsMemory)}">
+                  <i class="fas fa-memory"></i> Enterprise Memory
+                </a>
+                <a class="nav-link${_path===new URL(_meta.wsSettings,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsSettings)}">
+                  <i class="fas fa-sliders-h"></i> WS Settings
+                </a>
+                <a class="nav-link${_path===new URL(_meta.wsTeam,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsTeam)}">
+                  <i class="fas fa-users-cog"></i> Team Workspaces
+                </a>
+                <a class="nav-link${_path===new URL(_meta.wsActivity,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsActivity)}">
+                  <i class="fas fa-history"></i> AI Activity
+                </a>
+                <a class="nav-link${_path===new URL(_meta.wsAnalytics,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsAnalytics)}">
+                  <i class="fas fa-chart-line"></i> AI Analytics
+                </a>
+                <a class="nav-link${_path===new URL(_meta.wsTraining,window.location.origin).pathname?' active':''}" href="${esc(_meta.wsTraining)}">
+                  <i class="fas fa-graduation-cap"></i> Training Data
+                </a>
+              </div>`;
+            }
+
+            html += `
+            <div class="nav-item">
+              <a class="nav-link${wsOpen ? ' active' : ''}" href="${esc(_meta.workspaceChat)}">
+                <span style="width:16px;height:16px;display:flex;align-items:center;
+                             justify-content:center;flex-shrink:0;">
+                  <span style="width:8px;height:8px;border-radius:50%;
+                               background:#ef4444;display:inline-block;"></span>
+                </span>
+                R&amp;D
+              </a>
+              <div class="nav-submenu${wsOpen ? ' show' : ''}" id="${wsSubId}">
+                ${wsSubmenu}
+              </div>
+            </div>`;
+            }
+
+            if (!otherDepts.length && !projects.length) {
+                section.innerHTML = html;
+                return;
+            }
+
+            otherDepts.forEach(d => {
+                const dId     = `ds_${d.id}`;
+                const isOpen  = curDept === d.id;
+                const chatUrl = `${_meta.chatPage}?dept_id=${d.id}`;
+                // Single nav-link that navigates; submenu auto-opens on next page load via isOpen
+                html += `
+                <div class="nav-item">
+                  <a class="nav-link${isOpen ? ' active' : ''}" href="${esc(chatUrl)}">
+                    <span style="width:16px;height:16px;display:flex;align-items:center;
+                                 justify-content:center;flex-shrink:0;">
+                      <span style="width:8px;height:8px;border-radius:50%;
+                                   background:${esc(d.color)};display:inline-block;"></span>
+                    </span>
+                    ${esc(d.name)}
+                  </a>
+                  <div class="nav-submenu${isOpen ? ' show' : ''}" id="${dId}">
+                    ${mkSubTabs('dept_id', d.id, dId)}
+                  </div>
+                </div>`;
+            });
+
+            if (projects.length) {
+                const anyProjOpen = projects.some(p => curProj === p.id);
+                html += `
+                <div class="nav-item">
+                  <a class="nav-link${anyProjOpen ? ' active' : ''}" href="#"
+                     onclick="toggleSubmenu('ps_root'); return false;">
+                    <i class="fas fa-folder-open"></i>
+                    Client Projects
+                  </a>
+                  <div class="nav-submenu${anyProjOpen ? ' show' : ''}" id="ps_root">`;
+
+                projects.forEach(p => {
+                    const pId     = `ps_${p.id}`;
+                    const isOpen  = curProj === p.id;
+                    const pUrl    = `${_meta.chatPage}?project_id=${p.id}`;
+                    html += `
+                    <div class="nav-item">
+                      <a class="nav-link${isOpen ? ' active' : ''}" href="${esc(pUrl)}">
+                        <span style="width:16px;height:16px;display:flex;align-items:center;
+                                     justify-content:center;flex-shrink:0;">
+                          <span style="width:6px;height:6px;border-radius:50%;
+                                       background:${esc(p.color)};display:inline-block;"></span>
+                        </span>
+                        ${esc(p.name)}
+                      </a>
+                      <div class="nav-submenu${isOpen ? ' show' : ''}" id="${pId}">
+                        ${mkSubTabs('project_id', p.id, pId)}
+                      </div>
+                    </div>`;
+                });
+
+                html += `</div></div>`;
+            }
+
+            section.innerHTML = html;
+        }
+
+        async function buildDeptNav() {
+            const section = document.getElementById('deptNavSection');
+            if (!section) return;
+
+            // 1. Render instantly from localStorage cache — zero delay, no flash
+            const cached = localStorage.getItem(_ORG_CACHE_KEY);
+            if (cached) {
+                try {
+                    renderDeptNavFromData(section, JSON.parse(cached));
+                    pollDeptApprovalBadges();  // badges on cached render
+                } catch {}
+            }
+
+            // 2. Silently fetch fresh data in background
+            let data;
+            try {
+                const res = await fetch('/api/org/context');
+                data = await res.json();
+            } catch { return; }
+
+            // 3. Update cache + re-render only when data actually changed
+            const fresh = JSON.stringify(data);
+            if (fresh !== cached) {
+                localStorage.setItem(_ORG_CACHE_KEY, fresh);
+                renderDeptNavFromData(section, data);
+                {% if approval_enabled %}pollDeptApprovalBadges();{% endif %}
+            }
+        }
+
+        {% if approval_enabled %}
+        let _approvalPollTimer = null;
+
+        async function pollDeptApprovalBadges() {
+            try {
+                const res = await fetch('/api/agenthub/approvals/pending-count');
+                if (res.status === 401) {
+                    // Session expired — stop polling to avoid log spam
+                    if (_approvalPollTimer) { clearInterval(_approvalPollTimer); _approvalPollTimer = null; }
+                    return;
+                }
+                if (!res.ok) return;
+                const data = await res.json();
+                const cnt  = data.count || 0;
+                document.querySelectorAll('.dept-approval-badge').forEach(el => {
+                    if (cnt > 0) {
+                        el.textContent   = cnt > 99 ? '99+' : cnt;
+                        el.style.display = '';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
+            } catch { /* silent */ }
+        }
+        {% endif %}
+
+        buildDeptNav();
+        {% if approval_enabled %}_approvalPollTimer = setInterval(pollDeptApprovalBadges, 60000);{% endif %}
+    })();
+</script>

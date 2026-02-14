@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Nexus</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --brand: #A22E57;
+            --brand-dark: #6B2038;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Phantom Red — dark edge, offset bright highlight, same gradient
+               mechanics as the sidebar/hero surfaces */
+            background:
+                radial-gradient(170% 130% at 82% -14%, #A22E57 0%, #6B2038 12%, #4A1C2E 30%, #1A0A10 65%, #0D0509 100%);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        #nexus-flow-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .login-card {
+            position: relative;
+            z-index: 10;
+            margin: auto;
+            background: #fff;
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, .4);
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin-bottom: 1.8rem;
+        }
+
+        .brand-logo img {
+            height: 36px;
+        }
+
+        .brand-logo span {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #150f12;
+        }
+
+        .login-card h5 {
+            font-weight: 600;
+            color: #251e21;
+            margin-bottom: .25rem;
+        }
+
+        .login-card .subtitle {
+            color: #6e6265;
+            font-size: .9rem;
+            margin-bottom: 1.8rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #374151;
+            font-size: .875rem;
+        }
+
+        .form-control {
+            border-radius: 8px;
+            padding: .6rem .9rem;
+            border: 1.5px solid #e6dfe0;
+            transition: border-color .2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(162, 46, 87, .15);
+        }
+
+        .input-group .form-control {
+            border-right: none;
+        }
+
+        .input-group .btn-outline-secondary {
+            border: 1.5px solid #e6dfe0;
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            color: #a89b9d;
+            background: #fff;
+        }
+
+        .btn-login {
+            background: var(--brand);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: .7rem;
+            font-weight: 600;
+            font-size: 1rem;
+            width: 100%;
+            transition: background .2s, transform .1s;
+        }
+
+        .btn-login:hover {
+            background: var(--brand-dark);
+        }
+
+        .btn-login:active {
+            transform: scale(.98);
+        }
+
+        .alert {
+            border-radius: 8px;
+            font-size: .875rem;
+        }
+
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 3D Organic Flow Canvas -->
+    <canvas id="nexus-flow-canvas"></canvas>
+    <div class="login-card">
+
+        <!-- Brand -->
+        <div class="brand-logo">
+            <img src="/static/images/logo-mark.svg" alt="Logo" onerror="this.style.display='none'">
+            <span>Nexus</span>
+        </div>
+
+        <h5 id="cardTitle">Welcome back</h5>
+        <p class="subtitle" id="cardSubtitle">Sign in to your account to continue</p>
+
+        <!-- Alerts -->
+        <div id="loginError" class="alert alert-danger d-none" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <span id="loginErrorText"></span>
+        </div>
+        <div id="loginInfo" class="alert alert-info d-none" role="alert">
+            <i class="fas fa-envelope me-2"></i>
+            <span id="loginInfoText"></span>
+        </div>
+
+        <!-- Step 1: credentials -->
+        <div id="stepCredentials">
+            <div class="mb-3">
+                <label class="form-label" for="email">Email</label>
+                <input type="email" class="form-control" id="email" placeholder="Enter your email"
+                    autocomplete="email" autofocus>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label" for="password">Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" placeholder="Enter password"
+                        autocomplete="current-password">
+                    <button class="btn btn-outline-secondary" type="button" id="togglePwd" tabindex="-1">
+                        <i class="fas fa-eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button class="btn-login" id="loginBtn" onclick="doLogin()">
+                <span id="loginBtnText">Sign In</span>
+                <span id="loginSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+        </div>
+
+        <!-- Step 2: OTP -->
+        <div id="stepOtp" class="d-none">
+            <div class="mb-4">
+                <label class="form-label" for="otpInput">Verification Code</label>
+                <input type="text" class="form-control text-center fw-bold fs-4"
+                    id="otpInput" placeholder="000000" maxlength="6"
+                    autocomplete="one-time-code" inputmode="numeric" pattern="\d{6}"
+                    style="letter-spacing:.4rem">
+                <div class="form-text text-muted mt-1">Enter the 6-digit code sent to your email.</div>
+            </div>
+
+            <button class="btn-login" id="otpBtn" onclick="doVerifyOtp()">
+                <span id="otpBtnText">Verify Code</span>
+                <span id="otpSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+
+            <div class="text-center mt-3">
+                <button class="btn btn-link btn-sm text-secondary p-0" onclick="resetToCredentials()">
+                    <i class="fas fa-arrow-left me-1"></i>Back to sign-in
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let _pendingUserId = null;
+
+        document.getElementById('togglePwd').addEventListener('click', () => {
+            const pwd = document.getElementById('password');
+            const icon = document.getElementById('eyeIcon');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                pwd.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+
+        ['email', 'password'].forEach(id => {
+            document.getElementById(id).addEventListener('keydown', e => {
+                if (e.key === 'Enter') doLogin();
+            });
+        });
+
+        document.getElementById('otpInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doVerifyOtp();
+        });
+
+        function showError(msg) {
+            document.getElementById('loginErrorText').textContent = msg;
+            document.getElementById('loginError').classList.remove('d-none');
+            document.getElementById('loginInfo').classList.add('d-none');
+        }
+
+        function showInfo(msg) {
+            document.getElementById('loginInfoText').textContent = msg;
+            document.getElementById('loginInfo').classList.remove('d-none');
+            document.getElementById('loginError').classList.add('d-none');
+        }
+
+        function clearAlerts() {
+            document.getElementById('loginError').classList.add('d-none');
+            document.getElementById('loginInfo').classList.add('d-none');
+        }
+
+        function resetToCredentials() {
+            _pendingUserId = null;
+            clearAlerts();
+            document.getElementById('stepCredentials').classList.remove('d-none');
+            document.getElementById('stepOtp').classList.add('d-none');
+            document.getElementById('cardTitle').textContent = 'Welcome back';
+            document.getElementById('cardSubtitle').textContent = 'Sign in to your account to continue';
+        }
+
+        async function doLogin() {
+            const email    = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn      = document.getElementById('loginBtn');
+            const btnText  = document.getElementById('loginBtnText');
+            const spinner  = document.getElementById('loginSpinner');
+
+            clearAlerts();
+            if (!email || !password) { showError('Please enter your email and password.'); return; }
+
+            btn.disabled = true;
+            btnText.textContent = 'Signing in…';
+            spinner.classList.remove('d-none');
+
+            try {
+                const res  = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+
+                if (data.status === 'otp_required') {
+                    _pendingUserId = data.user_id;
+                    document.getElementById('stepCredentials').classList.add('d-none');
+                    document.getElementById('stepOtp').classList.remove('d-none');
+                    document.getElementById('cardTitle').textContent = 'Check your email';
+                    document.getElementById('cardSubtitle').textContent = 'We sent a verification code to ' + email;
+                    document.getElementById('otpInput').value = '';
+                    document.getElementById('otpInput').focus();
+                    showInfo('A 6-digit code was sent to your email.');
+                } else {
+                    showError(data.message || 'Login failed. Please try again.');
+                }
+            } catch (err) {
+                showError('Network error. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Sign In';
+                spinner.classList.add('d-none');
+            }
+        }
+
+        async function doVerifyOtp() {
+            const otp     = document.getElementById('otpInput').value.trim();
+            const btn     = document.getElementById('otpBtn');
+            const btnText = document.getElementById('otpBtnText');
+            const spinner = document.getElementById('otpSpinner');
+
+            clearAlerts();
+            if (!otp || otp.length !== 6) { showError('Please enter the 6-digit code.'); return; }
+
+            btn.disabled = true;
+            btnText.textContent = 'Verifying…';
+            spinner.classList.remove('d-none');
+
+            try {
+                const res  = await fetch('/api/auth/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: _pendingUserId, otp }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data.status === 'success') {
+                    window.location.href = '/dashboard';
+                } else {
+                    showError(data.message || 'Verification failed. Please try again.');
+                }
+            } catch (err) {
+                showError('Network error. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Verify Code';
+                spinner.classList.add('d-none');
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+    <script src="/static/js/nexus-flow.js" defer></script>
+</body>
+
+</html>

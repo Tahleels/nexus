@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Favicon variant — Phantom Red, visible on a light browser tab -->
+  <rect width="24" height="24" rx="6" fill="#1A0A10"/>
+  <circle cx="12" cy="13" r="7" stroke="#A22E57" stroke-width="2"/>
+  <circle cx="12" cy="13" r="3.4" fill="#A22E57" fill-opacity=".4"/>
+  <path d="M18.6 11.3c1.6.2 2.6 1.2 2.6 2.3s-1 1.9-2.3 2.1" stroke="#A22E57" stroke-width="2" stroke-linecap="round"/>
+</svg>

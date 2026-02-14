@@ -1,0 +1,196 @@
+/* =============================================
+   components.css — Nexus
+   Structural layout & component styles.
+   All colors reference theme.css variables.
+============================================= */
+
+/* ── Sidebar Structure ───────────────────── */
+.sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    overflow-y: auto;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: .75rem 0;
+    overflow-y: auto;
+}
+
+.nav-item { margin: .15rem .75rem; }
+
+.nav-link {
+    padding: .6rem .875rem;
+    border-radius: 8px;
+    transition: all .15s ease;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+}
+
+.nav-link i { width: 16px; flex-shrink: 0; }
+
+.nav-submenu {
+    margin-left: 1.4rem;
+    display: none;
+    padding-top: 4px;
+}
+
+.nav-submenu.show  { display: block; }
+.nav-submenu .nav-link { padding: .45rem .75rem; font-size: .825rem; }
+
+.nav-item > .nav-link { margin-bottom: 2px; }
+
+/* ── Main Content ────────────────────────── */
+.main-content {
+    margin-left: var(--sidebar-width);
+    padding: 1.75rem 2rem;
+    min-height: 100vh;
+}
+
+/* ── Page Header ─────────────────────────── */
+.page-header {
+    border-radius: var(--card-radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ── Cards ───────────────────────────────── */
+.agent-card {
+    border-radius: var(--card-radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.agent-card:hover { transform: translateY(-2px); }
+
+.stats-card {
+    border-radius: var(--card-radius);
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stats-card:hover { transform: translateY(-3px); }
+
+.stats-number {
+    font-size: 1.9rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.form-container {
+    border-radius: var(--card-radius);
+    padding: 2rem;
+}
+
+/* ── Chat ────────────────────────────────── */
+.chat-container {
+    border-radius: var(--card-radius);
+    height: 70vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    padding: 1rem 1.5rem;
+    border-radius: calc(var(--card-radius)) calc(var(--card-radius)) 0 0;
+    color: white;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.message {
+    margin-bottom: 1rem;
+    display: flex;
+}
+
+.message.user { justify-content: flex-end; }
+
+.message-content {
+    max-width: 70%;
+    padding: .75rem 1rem;
+    border-radius: 1rem;
+}
+
+.message.user .message-content {
+    color: white;
+}
+
+.chat-input {
+    padding: 1rem 1.5rem;
+    border-radius: 0 0 var(--card-radius) var(--card-radius);
+}
+
+/* ── Status Badges ───────────────────────── */
+.status-badge {
+    padding: .25rem .75rem;
+    border-radius: 1rem;
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.table-actions { white-space: nowrap; }
+.btn-sm        { font-size: .8rem; }
+
+/* ── User Chat Container ─────────────────── */
+.user-chat-container {
+    height: 300px;
+    overflow-y: auto;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.chat-message {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+/* ── Query Input ─────────────────────────── */
+.query-input-container { width: 100%; max-width: 100%; box-sizing: border-box; }
+.query-input           { width: 100%; box-sizing: border-box; max-width: 100%; resize: vertical; }
+
+.bi-assistant-section                     { width: 100%; max-width: 100%; box-sizing: border-box; }
+.bi-assistant-section input,
+.bi-assistant-section textarea            { width: 100%; max-width: 100%; box-sizing: border-box; }
+
+/* ── Sidebar Footer ──────────────────────── */
+.sidebar-footer { margin-top: auto; }
+
+/* ── Analysis Text ───────────────────────── */
+.analysis-text        { font-size: 14px; line-height: 1.75; }
+.analysis-text h1     { font-size: 24px; font-weight: 700; margin-top: 20px; margin-bottom: 10px; }
+.analysis-text h2     { font-size: 20px; font-weight: 700; margin-top: 20px; margin-bottom: 10px; }
+.analysis-text h3     { font-size: 17px; font-weight: 700; margin-top: 20px; margin-bottom: 10px; }
+.analysis-text p      { margin-bottom: 14px; }
+.analysis-text ul     { margin-bottom: 16px; padding-left: 22px; }
+.analysis-text li     { margin-bottom: 8px; }
+.analysis-text strong { font-weight: 600; }
+.analysis-text blockquote { border-left: 3px solid; padding-left: 12px; margin-left: 0; }
+
+/* ── Markdown Content ────────────────────── */
+.markdown-content                         { font-size: 14px; line-height: 1.75; }
+.markdown-content h1, .markdown-content h2,
+.markdown-content h3, .markdown-content h4 { margin-top: 18px; margin-bottom: 10px; font-weight: 700; }
+.markdown-content p                        { margin-bottom: 12px; }
+.markdown-content ul, .markdown-content ol { padding-left: 20px; margin-bottom: 14px; }
+.markdown-content li                       { margin-bottom: 8px; }
+.markdown-content strong                   { font-weight: 600; }

@@ -1,0 +1,716 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Nexus{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Welcome banner ──────────────────────────────────────────── */
+.dash-welcome {
+    background: radial-gradient(150% 140% at 22% -6%, #A22E57 0%, #6B2038 14%, #4A1C2E 34%, #1A0A10 70%, #0D0509 100%);
+    border-radius: 16px;
+    padding: 28px 32px;
+    color: #fff;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+}
+.dash-welcome::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(162,46,87,.35) 0%, transparent 70%);
+    pointer-events: none;
+}
+.dash-greeting    { font-size: 1.55rem; font-weight: 700; margin: 0; color: #fff !important; }
+.dash-sub         { font-size: .88rem; opacity: .75; margin-top: 4px; }
+.dash-token-pill  {
+    background: rgba(74,28,46,.45);
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 12px;
+    padding: 12px 20px;
+    text-align: right;
+    min-width: 140px;
+}
+.dash-token-pill .lbl { font-size: .7rem; opacity: .6; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.dash-token-pill .val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+.dash-token-pill .sub { font-size: .68rem; opacity: .55; margin-top: 2px; }
+
+/* ── Section header ──────────────────────────────────────────── */
+.dash-section-hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 28px 0 14px;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-2, #6e6265);
+}
+.dash-section-hdr::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border, #e6dfe0);
+    margin-left: 6px;
+}
+
+/* ── Stats cards ─────────────────────────────────────────────── */
+.dash-stat {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, #e6dfe0);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    transition: box-shadow .15s, transform .15s;
+    cursor: default;
+}
+.dash-stat:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
+.dash-stat .stat-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; margin-bottom: 10px;
+}
+.dash-stat .stat-val { font-size: 1.6rem; font-weight: 800; color: var(--text-1, #251e21); line-height: 1; }
+.dash-stat .stat-lbl { font-size: .75rem; color: var(--text-2, #6e6265); margin-top: 4px; }
+.dash-stat .stat-sub { font-size: .7rem; color: #a89b9d; margin-top: 2px; }
+
+/* ── Department cards ────────────────────────────────────────── */
+.dept-card {
+    border-radius: 12px;
+    padding: 16px 18px;
+    color: #fff;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    text-decoration: none;
+    display: block;
+    position: relative;
+    overflow: hidden;
+    min-height: 90px;
+}
+.dept-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.18); color: #fff; }
+.dept-card::after {
+    content: '\f105';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    font-size: .8rem;
+    opacity: .5;
+}
+.dept-card .dc-name { font-weight: 700; font-size: .92rem; margin-bottom: 4px; }
+.dept-card .dc-sub  { font-size: .72rem; opacity: .7; }
+
+/* ── Content cards ───────────────────────────────────────────── */
+.dash-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, #e6dfe0);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    overflow: hidden;
+}
+.dash-card-hdr {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--card-border, #e6dfe0);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: .88rem;
+    color: var(--text-1, #251e21);
+}
+.dash-card-body { padding: 0; }
+.dash-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--card-border, #e6dfe0);
+    font-size: .83rem;
+    color: var(--text-1, #251e21);
+    transition: background .1s;
+}
+.dash-row:last-child { border-bottom: none; }
+.dash-row:hover { background: var(--card-hover, #f8f6f6); }
+.dash-empty { padding: 32px 18px; text-align: center; color: #a89b9d; font-size: .85rem; }
+
+/* ── Approval status badges ──────────────────────────────────── */
+.apr-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.apr-dot.pending  { background: #f59e0b; }
+.apr-dot.approved { background: #22c55e; }
+.apr-dot.rejected { background: #ef4444; }
+
+/* ── Quick action button ─────────────────────────────────────── */
+.qa-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border, #e6dfe0);
+    background: var(--card-bg, #fff);
+    text-decoration: none;
+    color: var(--text-1, #251e21);
+    font-size: .75rem;
+    font-weight: 600;
+    transition: all .15s;
+    flex: 1;
+}
+.qa-btn:hover { background: #F8E8EB; border-color: #E8B9C4; color: #6B2038; transform: translateY(-2px); }
+.qa-btn i { font-size: 1.2rem; }
+
+/* ── Token bar ───────────────────────────────────────────────── */
+.token-bar-wrap { background: rgba(255,255,255,.15); border-radius: 6px; height: 6px; margin-top: 8px; overflow: hidden; }
+.token-bar { height: 100%; border-radius: 6px; transition: width .5s; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Welcome Banner ─────────────────────────────────────────────────────── -->
+<div class="dash-welcome">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h1 class="dash-greeting" id="dashGreeting">Welcome back!</h1>
+            <div class="dash-sub" id="dashDate"></div>
+            <div class="mt-2">
+                <span class="badge" style="background:rgba(255,255,255,.2);font-size:.75rem;font-weight:500;">
+                    <i class="fas fa-user-circle me-1"></i>
+                    {{ current_user.username }} &middot; {{ current_user.role|capitalize }}
+                </span>
+            </div>
+        </div>
+        <div class="dash-token-pill" id="dashTokenPill" style="display:none;">
+            <div class="lbl">Token Balance</div>
+            <div class="val" id="dashTokenVal">—</div>
+            <div class="sub" id="dashTokenSub"></div>
+            <div class="token-bar-wrap" id="dashTokenBarWrap" style="display:none;">
+                <div class="token-bar" id="dashTokenBar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Quick Actions ─────────────────────────────────────────────────────── -->
+<div class="d-flex gap-2 flex-wrap mb-4">
+    <a href="{{ url_for('agents_hub.hub_chat_page') }}" class="qa-btn">
+        <i class="fas fa-comments" style="color:#A22E57;"></i>Agent Chat
+    </a>
+    <a href="{{ url_for('bi_agents') }}" class="qa-btn">
+        <i class="fas fa-chart-bar" style="color:#8b5cf6;"></i>BI Agents
+    </a>
+    {% if approval_enabled %}
+    <a href="{{ url_for('agents_hub.approvals_page') }}" class="qa-btn">
+        <i class="fas fa-check-double" style="color:#f59e0b;"></i>Approvals
+    </a>
+    {% endif %}
+    <a href="{{ url_for('jobs_page') }}" class="qa-btn">
+        <i class="fas fa-clock" style="color:#10b981;"></i>Jobs
+    </a>
+    {% if current_user.role in ('admin', 'dev') %}
+    <a href="{{ url_for('agents_hub.hub_agents_page') }}" class="qa-btn">
+        <i class="fas fa-microchip" style="color:#6366f1;"></i>Nexus AI Hub
+    </a>
+    {% endif %}
+    <a href="{{ url_for('workspace.workspace_chat') }}" class="qa-btn">
+        <i class="fas fa-laptop-code" style="color:#A22E57;"></i>AI Workspace
+    </a>
+</div>
+
+<!-- ── My Tasks (Task Tracker) ─────────────────────────────────────────── -->
+<div class="dash-section-hdr">
+    <i class="fas fa-tasks"></i> My In Progress &amp; Overdue Tasks
+    <span id="myTasksBadge" class="badge bg-danger ms-2" style="display:none;font-size:.68rem;"></span>
+</div>
+<div class="dash-card mb-4" id="myTasksCard">
+    <div class="dash-card-body">
+        <div id="myTasksBody">
+            <div class="dash-empty"><div class="spinner-border spinner-border-sm me-2"></div>Loading tasks…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── My Departments & Projects ─────────────────────────────────────────── -->
+<div class="dash-section-hdr">
+    <i class="fas fa-building"></i> My Departments &amp; Projects
+</div>
+<div class="row g-3 mb-2" id="dashDeptCards">
+    <div class="col-12 text-muted" style="font-size:.82rem;">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+</div>
+
+<!-- ── Stats Row ─────────────────────────────────────────────────────────── -->
+<div class="dash-section-hdr">
+    <i class="fas fa-chart-bar"></i> Overview
+</div>
+<div class="row g-3 mb-4" id="dashStatsRow">
+    <div class="col-6 col-md-3">
+        <div class="dash-stat">
+            <div class="stat-icon" style="background:#F8E8EB;"><i class="fas fa-robot" style="color:#A22E57;"></i></div>
+            <div class="stat-val" id="ds_agents">—</div>
+            <div class="stat-lbl">My Agents</div>
+        </div>
+    </div>
+    {% if approval_enabled %}
+    <div class="col-6 col-md-3">
+        <div class="dash-stat">
+            <div class="stat-icon" style="background:#fef3c7;"><i class="fas fa-check-double" style="color:#f59e0b;"></i></div>
+            <div class="stat-val" id="ds_approvals">—</div>
+            <div class="stat-lbl">Pending Approvals</div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md-3">
+        <div class="dash-stat">
+            <div class="stat-icon" style="background:#f0fdf4;"><i class="fas fa-clock" style="color:#22c55e;"></i></div>
+            <div class="stat-val" id="ds_jobs">—</div>
+            <div class="stat-lbl">Active Jobs</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="dash-stat">
+            <div class="stat-icon" style="background:#faf5ff;"><i class="fas fa-comments" style="color:#8b5cf6;"></i></div>
+            <div class="stat-val" id="ds_convos">—</div>
+            <div class="stat-lbl">Conversations</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Main Content Row ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4">
+
+    <!-- Recent Conversations -->
+    <div class="col-lg-7">
+        <div class="dash-card h-100">
+            <div class="dash-card-hdr">
+                <span><i class="fas fa-comments me-2 text-primary"></i>Recent Conversations</span>
+                <a href="{{ url_for('agents_hub.hub_chat_page') }}" class="btn btn-sm btn-outline-primary py-0">
+                    <i class="fas fa-plus me-1"></i>New
+                </a>
+            </div>
+            <div class="dash-card-body" id="dashConvoList">
+                <div class="dash-empty"><i class="fas fa-comment-slash mb-2 d-block" style="font-size:1.5rem;"></i>No conversations yet</div>
+            </div>
+        </div>
+    </div>
+
+    {% if approval_enabled %}
+    <!-- Pending Approvals -->
+    <div class="col-lg-5">
+        <div class="dash-card h-100">
+            <div class="dash-card-hdr">
+                <span><i class="fas fa-check-double me-2 text-warning"></i>Pending Approvals</span>
+                <a href="{{ url_for('agents_hub.approvals_page') }}" class="btn btn-sm btn-outline-secondary py-0">View all</a>
+            </div>
+            <div class="dash-card-body" id="dashApprovalList">
+                <div class="dash-empty"><i class="fas fa-check-circle mb-2 d-block" style="font-size:1.5rem;color:#22c55e;"></i>No pending approvals</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ── Admin/Dev Extended Stats ──────────────────────────────────────────── -->
+{% if current_user and current_user.role in ('admin', 'dev') %}
+<div class="dash-section-hdr">
+    <i class="fas fa-microchip"></i> Nexus AI Hub System
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_agents" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-robot me-1 text-primary"></i>Agents</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_workflows" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-project-diagram me-1 text-warning"></i>Workflows</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_tools" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-tools me-1 text-secondary"></i>Tools</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_jobs" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-clock me-1 text-danger"></i>Jobs</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_convos" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-comments me-1 text-success"></i>Convos</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2">
+        <div class="dash-stat text-center">
+            <div class="stat-val" id="hd_tokens" style="font-size:1.3rem;">—</div>
+            <div class="stat-lbl"><i class="fas fa-coins me-1 text-info"></i>Tokens</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="dash-card">
+            <div class="dash-card-hdr"><i class="fas fa-robot me-2 text-info"></i>Top Agents</div>
+            <div class="dash-card-body" id="hd_topAgents">
+                <div class="dash-empty">Loading…</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="dash-card">
+            <div class="dash-card-hdr"><i class="fas fa-tools me-2 text-secondary"></i>Top Tools</div>
+            <div class="dash-card-body" id="hd_topTools">
+                <div class="dash-empty">Loading…</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="dash-card">
+            <div class="dash-card-hdr"><i class="fas fa-project-diagram me-2 text-warning"></i>Recent Workflow Runs</div>
+            <div class="dash-card-body" id="hd_wfRuns">
+                <div class="dash-empty">Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script id="dashMeta"
+    data-role="{{ current_user.role if current_user else 'user' }}"
+    data-username="{{ current_user.username if current_user else '' }}"
+    data-chat-url="{{ url_for('agents_hub.hub_chat_page') }}">
+</script>
+<script>
+(async function initDashboard() {
+    const meta      = document.getElementById('dashMeta');
+    const role      = meta.dataset.role;
+    const username  = meta.dataset.username;
+    const chatUrl   = meta.dataset.chatUrl;
+    const isDevAdmin = role === 'admin' || role === 'dev';
+
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fmtN(n) {
+        n = +n || 0;
+        if (n >= 1_000_000) return parseFloat((n / 1_000_000).toFixed(3)) + 'M';
+        if (n >= 1_000)     return Math.round(n/1_000) + 'K';
+        return n.toLocaleString();
+    }
+    function fmtDate(s) {
+        if (!s) return '—';
+        const d = new Date(s);
+        const now = new Date();
+        const diff = Math.round((now - d) / 60000);
+        if (diff < 1)  return 'just now';
+        if (diff < 60) return `${diff}m ago`;
+        if (diff < 1440) return `${Math.round(diff/60)}h ago`;
+        return d.toLocaleDateString();
+    }
+
+    // ── Greeting ─────────────────────────────────────────────────────────────
+    const hr   = new Date().getHours();
+    const greet = hr < 12 ? 'Good Morning' : hr < 17 ? 'Good Afternoon' : 'Good Evening';
+    const displayName = username ? username.charAt(0).toUpperCase() + username.slice(1) : username;
+    document.getElementById('dashGreeting').textContent = `${greet}, ${displayName}!`;
+    document.getElementById('dashDate').textContent = new Date().toLocaleDateString('en-US',
+        { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+    // ── Token balance ─────────────────────────────────────────────────────────
+    try {
+        const res  = await fetch('/api/auth/token-usage');
+        const tok  = await res.json();
+        const pill = document.getElementById('dashTokenPill');
+        const val  = document.getElementById('dashTokenVal');
+        const sub  = document.getElementById('dashTokenSub');
+        pill.style.display = '';
+        if (tok.unlimited) {
+            val.textContent = 'Unlimited';
+            sub.textContent = 'No daily limit';
+        } else {
+            const rem = tok.remaining || 0;
+            const lim = tok.limit     || 1;
+            const pct = Math.round(rem / lim * 100);
+            val.textContent = fmtN(rem);
+            sub.textContent = `${fmtN(tok.used_today||0)} used today`;
+            const barWrap = document.getElementById('dashTokenBarWrap');
+            const bar     = document.getElementById('dashTokenBar');
+            barWrap.style.display = '';
+            bar.style.width   = Math.min(100, pct) + '%';
+            bar.style.background = pct < 15 ? '#ef4444' : pct < 40 ? '#f59e0b' : '#22c55e';
+        }
+    } catch {}
+
+    // ── Departments & Projects cards ──────────────────────────────────────────
+    try {
+        const res  = await fetch('/api/org/context');
+        const org  = await res.json();
+        const depts = org.departments || [];
+        const projs = org.projects    || [];
+        const grid  = document.getElementById('dashDeptCards');
+
+        const COLORS = ['#6366f1','#ec4899','#14b8a6','#f59e0b','#10b981','#ef4444','#8b5cf6','#06b6d4'];
+        let html = '';
+
+        depts.forEach((d, i) => {
+            const bg = d.color || COLORS[i % COLORS.length];
+            html += `
+            <div class="col-6 col-md-3 col-lg-2">
+                <a href="${esc(chatUrl)}?dept_id=${d.id}" class="dept-card"
+                   style="background:linear-gradient(135deg, ${esc(bg)}, ${esc(bg)}cc);">
+                    <div class="dc-name">${esc(d.name)}</div>
+                    <div class="dc-sub"><i class="fas fa-comments me-1"></i>Open Chat</div>
+                </a>
+            </div>`;
+        });
+
+        if (projs.length) {
+            html += `<div class="col-6 col-md-3 col-lg-2">
+                <a href="#" class="dept-card" data-bs-toggle="collapse" data-bs-target="#projCards"
+                   style="background:linear-gradient(135deg,#A22E57,#6B2038);">
+                    <div class="dc-name"><i class="fas fa-folder-open me-1"></i>Projects</div>
+                    <div class="dc-sub">${projs.length} project${projs.length>1?'s':''}</div>
+                </a>
+            </div>`;
+        }
+
+        if (!html) {
+            html = `<div class="col-12">
+                <div class="dash-empty" style="background:var(--card-bg,#fff);border:1px solid var(--card-border,#e6dfe0);border-radius:12px;padding:24px;">
+                    <i class="fas fa-building mb-2 d-block" style="font-size:1.5rem;"></i>
+                    No departments assigned. Contact your administrator.
+                </div>
+            </div>`;
+        }
+
+        grid.innerHTML = html;
+
+        // Projects collapse
+        if (projs.length) {
+            let pHtml = `<div class="collapse" id="projCards"><div class="row g-3 mt-0">`;
+            projs.forEach((p, i) => {
+                const bg = p.color || COLORS[(i+3) % COLORS.length];
+                pHtml += `<div class="col-6 col-md-3 col-lg-2">
+                    <a href="${esc(chatUrl)}?project_id=${p.id}" class="dept-card"
+                       style="background:linear-gradient(135deg,${esc(bg)},${esc(bg)}cc);">
+                        <div class="dc-name">${esc(p.name)}</div>
+                        <div class="dc-sub"><i class="fas fa-comments me-1"></i>Open Chat</div>
+                    </a>
+                </div>`;
+            });
+            pHtml += `</div></div>`;
+            grid.insertAdjacentHTML('afterend', pHtml);
+        }
+    } catch {}
+
+    {% if approval_enabled %}
+    // ── Pending approvals count ────────────────────────────────────────────────
+    try {
+        const res  = await fetch('/api/agenthub/approvals/pending-count');
+        if (res.ok) {
+            const data = await res.json();
+            const el   = document.getElementById('ds_approvals');
+            if (el) el.textContent = data.count || 0;
+        }
+    } catch {}
+    {% endif %}
+
+    // ── Conversations + agents ─────────────────────────────────────────────────
+    try {
+        const res   = await fetch('/api/agenthub/agents');
+        const agents = await res.json();
+        const el    = document.getElementById('ds_agents');
+        if (el) el.textContent = agents.length;
+    } catch {}
+
+    // ── Active jobs count (BI jobs) ────────────────────────────────────────────
+    try {
+        const res  = await fetch('/api/jobs');
+        const jobs = await res.json();
+        const active = jobs.filter(j => j.enabled && j.is_running).length;
+        const el   = document.getElementById('ds_jobs');
+        if (el) el.textContent = active;
+    } catch {}
+
+    // ── Recent hub conversations (enriched with agent info) ───────────────────
+    try {
+        const [convRes, agRes] = await Promise.all([
+            fetch('/api/agenthub/chat/conversations'),
+            fetch('/api/agenthub/agents'),
+        ]);
+        const convos  = await convRes.json();
+        const agents  = await agRes.json();
+        const agMap   = Object.fromEntries((agents||[]).map(a => [a.id, a]));
+
+        const el = document.getElementById('ds_convos');
+        if (el) el.textContent = (convos||[]).length;
+
+        const listEl = document.getElementById('dashConvoList');
+        const list   = (convos||[]).slice(0, 8);
+        if (!list.length) {
+            listEl.innerHTML = `<div class="dash-empty">
+                <i class="fas fa-comment-slash mb-2 d-block" style="font-size:1.5rem;"></i>
+                No conversations yet.<br>
+                <a href="${esc(chatUrl)}" class="btn btn-sm btn-primary mt-2">Start chatting</a>
+            </div>`;
+        } else {
+            listEl.innerHTML = list.map(c => {
+                const ag    = agMap[c.agent_id] || {};
+                const color = ag.avatar_color || '#6366f1';
+                const name  = ag.name || c.agent_id?.slice(-6) || '?';
+                return `
+                <a href="${esc(chatUrl)}?agent=${esc(c.agent_id||'')}" class="dash-row text-decoration-none">
+                    <div style="width:32px;height:32px;border-radius:50%;background:${esc(color)};
+                                display:flex;align-items:center;justify-content:center;color:#fff;
+                                font-size:.75rem;font-weight:700;flex-shrink:0;">
+                        ${esc(name[0].toUpperCase())}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            ${esc(c.title||'Untitled conversation')}
+                        </div>
+                        <div style="font-size:.72rem;color:#6e6265;">
+                            ${esc(name)} &middot; ${fmtDate(c.updated_at||c.created_at)}
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right" style="font-size:.65rem;color:#d3c6c8;flex-shrink:0;"></i>
+                </a>`;
+            }).join('');
+        }
+    } catch {}
+
+    {% if approval_enabled %}
+    // ── Recent pending approvals ───────────────────────────────────────────────
+    try {
+        const res  = await fetch('/api/agenthub/approvals');
+        const all  = await res.json();
+        const pend = all.filter(a => a.status === 'pending').slice(0, 5);
+        const el   = document.getElementById('dashApprovalList');
+
+        if (!pend.length) {
+            el.innerHTML = `<div class="dash-empty">
+                <i class="fas fa-check-circle mb-2 d-block" style="font-size:1.5rem;color:#22c55e;"></i>
+                All caught up!
+            </div>`;
+        } else {
+            el.innerHTML = pend.map(a => `
+            <div class="dash-row">
+                <span class="apr-dot pending"></span>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        ${esc(a.title||'Approval request')}
+                    </div>
+                    <div style="font-size:.72rem;color:#6e6265;">
+                        ${esc(a.agent_name||a.workflow_name||'')} &middot; ${fmtDate(a.created_at)}
+                    </div>
+                </div>
+                <a href="{{ url_for('agents_hub.approvals_page') }}"
+                   class="btn btn-xs btn-warning py-0 px-2" style="font-size:.72rem;flex-shrink:0;">
+                    Review
+                </a>
+            </div>`).join('');
+        }
+    } catch {}
+    {% endif %}
+
+    // ── Admin/Dev: Nexus AI Hub stats ─────────────────────────────────────────
+    if (isDevAdmin) {
+        try {
+            const res  = await fetch('/api/agenthub/dashboard/stats');
+            const data = await res.json();
+            const s    = data.stats || {};
+
+            const set = (id, v) => { const e = document.getElementById(id); if(e) e.textContent = fmtN(v); };
+            set('hd_agents',    s.agents    || 0);
+            set('hd_workflows', s.workflows || 0);
+            set('hd_tools',     s.tools     || 0);
+            set('hd_jobs',      s.jobs      || 0);
+            set('hd_convos',    s.conversations || 0);
+            set('hd_tokens',    s.total_tokens  || 0);
+
+            // Top agents
+            const agEl = document.getElementById('hd_topAgents');
+            if (agEl) agEl.innerHTML = (data.agents||[]).slice(0,5).map(a => `
+                <div class="dash-row">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${esc(a.avatar_color||'#6366f1')};flex-shrink:0;display:inline-block;"></span>
+                    <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name||'')}</span>
+                    <span class="badge bg-light text-dark border" style="font-size:.7rem;">${a.total_runs||0} runs</span>
+                </div>`).join('') || '<div class="dash-empty">No agents yet</div>';
+
+            // Top tools
+            const toolEl = document.getElementById('hd_topTools');
+            if (toolEl) toolEl.innerHTML = (data.top_tools||[]).slice(0,5).map(t => `
+                <div class="dash-row">
+                    <i class="fas fa-tools" style="font-size:.75rem;color:#a89b9d;flex-shrink:0;"></i>
+                    <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.display_name||t.name||'')}</span>
+                    <span class="badge bg-light text-dark border" style="font-size:.7rem;">${t.total_calls||0}</span>
+                </div>`).join('') || '<div class="dash-empty">No tool usage yet</div>';
+
+            // Workflow runs
+            const wfEl = document.getElementById('hd_wfRuns');
+            if (wfEl) {
+                const runs = data.recent_workflow_runs || [];
+                wfEl.innerHTML = runs.slice(0,5).map(r => `
+                <div class="dash-row">
+                    <span class="badge bg-${r.status==='completed'?'success':r.status==='failed'?'danger':'secondary'}"
+                          style="font-size:.65rem;">${r.status}</span>
+                    <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.8rem;">${esc(r.workflow_id||'').slice(-8)}</span>
+                    <span style="font-size:.72rem;color:#a89b9d;">${fmtDate(r.started_at)}</span>
+                </div>`).join('') || '<div class="dash-empty">No workflow runs yet</div>';
+            }
+        } catch {}
+    }
+
+    // ── My Tasks widget ──────────────────────────────────────────────────────
+    async function loadMyTasks() {
+        try {
+            const res  = await fetch('/api/dashboard/my-tasks');
+            const data = await res.json();
+            const body = document.getElementById('myTasksBody');
+            const badge = document.getElementById('myTasksBadge');
+            const tasks = data.tasks || [];
+
+            if (!tasks.length) {
+                body.innerHTML = '<div class="dash-empty"><i class="fas fa-check-circle me-2" style="color:#22c55e;"></i>No pending or overdue tasks</div>';
+                return;
+            }
+
+            badge.textContent = tasks.length;
+            badge.style.display = '';
+
+            body.innerHTML = tasks.map(t => {
+                const isOverdue = !!t.IsOverdue;
+                const statusColor = isOverdue ? '#ef4444' : '#A22E57';
+                const statusBg    = isOverdue ? '#fef2f2' : '#F8E8EB';
+                const due = t.DueDate ? t.DueDate.split('T')[0] : '—';
+                const proj = t.ProjectName ? `<span style="font-size:.68rem;color:#a89b9d;margin-left:6px;">${esc(t.ProjectName)}</span>` : '';
+                return `<div class="dash-row">
+                    <span style="width:8px;height:8px;border-radius:50%;background:${statusColor};flex-shrink:0;"></span>
+                    <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.Title)}${proj}</span>
+                    <span class="badge" style="background:${statusBg};color:${statusColor};font-size:.68rem;font-weight:600;">${esc(t.StatusLabel)}</span>
+                    <span style="font-size:.72rem;color:#a89b9d;white-space:nowrap;">${due}</span>
+                </div>`;
+            }).join('');
+        } catch {
+            document.getElementById('myTasksBody').innerHTML = '<div class="dash-empty">Could not load tasks</div>';
+        }
+    }
+    loadMyTasks();
+
+})();
+</script>
+{% endblock %}

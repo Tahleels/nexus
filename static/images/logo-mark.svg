@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <!-- Cup + Ring mark, Phantom Red — for light surfaces (login card, etc.) -->
+  <circle cx="11" cy="12" r="7" stroke="#4A1C2E" stroke-width="1.7"/>
+  <circle cx="11" cy="12" r="3.4" fill="#4A1C2E" fill-opacity=".28" stroke="#4A1C2E" stroke-width="1.2"/>
+  <path d="M17.6 10.3c1.6.2 2.6 1.2 2.6 2.3s-1 1.9-2.3 2.1" stroke="#4A1C2E" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

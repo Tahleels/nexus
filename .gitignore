@@ -1,0 +1,103 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+.python-version
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+*.env
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Git
+# =========================
+.git/
+
+# =========================
+# Cache / Temp
+# =========================
+.nlq_schema_cache/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# =========================
+# Build / Deployment
+# =========================
+dist/
+build/
+*.egg-info/
+server_deployment.zip
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Database Files
+# =========================
+*.db
+*.sqlite3
+
+# =========================
+# Local data stores (RAG/knowledge/config)
+# =========================
+Data/
+
+# =========================
+# Claude Code local session state
+# =========================
+.claude/scheduled_tasks.lock
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Node.js (if using React/frontend)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.tmp
+*.temp
+
+app_logs.txt
+server_logs.txt
+*.log

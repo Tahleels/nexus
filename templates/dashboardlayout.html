@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        .dashboard-container { 
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .dashboard-header { 
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .dashboard-header h1 { 
+            font-size: 1.6em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .dashboard-header p { 
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .filter-container {
+            padding: 15px 20px;
+            background: rgba(52,152,219,.08);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .filter-group label {
+            font-weight: 500;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            font-size: 0.8em;
+        }
+        select {
+            padding: 6px 12px;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            background: white;
+            font-size: 0.8em;
+            min-width: 120px;
+            transition: all 0.2s ease;
+        }
+        select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52,152,219,.3);
+        }
+        
+        .metrics-grid { 
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            padding: 20px;
+            background: rgba(248, 249, 250, 0.5);
+        }
+        .metric-card { 
+            background: white;
+            padding: 16px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border-left: 4px solid #3498db;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .metric-card:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .metric-value { 
+            font-size: 1.6em;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #2c3e50;
+            line-height: 1.2;
+        }
+        .metric-label { 
+            color: #666;
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+        
+        .charts-grid { 
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+        .chart-container { 
+            background: white;
+            padding: 16px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            transition: all 0.2s ease;
+            min-height: 300px;
+        }
+        .chart-container:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .chart-title { 
+            font-size: 1em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .chart-container canvas {
+            max-height: 250px !important;
+        }
+        
+        #loader { 
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            z-index: 1000;
+            width: 40px;
+            height: 40px;
+            margin: -20px 0 0 -20px;
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
+        .hidden { display: none; }
+        
+        @media (max-width: 768px) {
+            .dashboard-header { padding: 15px; }
+            .dashboard-header h1 { font-size: 1.4em; }
+            .filter-container { padding: 12px 15px; gap: 10px; }
+            .metrics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 10px;
+                padding: 15px;
+            }
+            .metric-card { padding: 12px; }
+            .metric-value { font-size: 1.4em; }
+            .charts-grid { grid-template-columns: 1fr; gap: 12px; padding: 15px; }
+            .chart-container { min-height: 250px; }
+            .chart-container canvas { max-height: 200px !important; }
+        }
+        
+        @media (max-width: 480px) {
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .metric-value { font-size: 1.2em; }
+            .metric-label { font-size: 0.7em; }
+        }
+
+        /* ── Top action bar ─────────────────────────────────── */
+        .action-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 20px;
+        }
+        .action-bar button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .action-bar button:hover  { opacity: 0.88; }
+        .action-bar button:active { transform: scale(0.97); }
+        .btn-download   { background: #2c3e50; color: white; }
+        .btn-regenerate { background: #e67e22; color: white; }
+        .btn-regenerate.loading {
+            opacity: 0.65;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        @keyframes spin-btn { to { transform: rotate(360deg); } }
+        .spin-icon { display: inline-block; animation: spin-btn 0.8s linear infinite; }
+    </style>
+</head>
+<body>
+    <!-- Action bar: Download + Regenerate -->
+    <div class="action-bar">
+        <button class="btn-regenerate" id="regenerateBtn" onclick="requestRegenerate()">
+            🔄 Regenerate
+        </button>
+        <button class="btn-download" onclick="downloadDashboardPDF()">
+            ⬇ Download PDF
+        </button>
+    </div>
+
+    <div id="loader"></div>
+    <div id="dashboard" class="dashboard-container hidden">
+        <div class="dashboard-header">
+            <h1 id="dashboardTitle">Loading...</h1>
+            <p id="dashboardSubtitle"></p>
+        </div>
+
+        <div class="filter-container" id="filterContainer"></div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value" id="kpi1_value">...</div>
+                <div class="metric-label" id="kpi1_label">...</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="kpi2_value">...</div>
+                <div class="metric-label" id="kpi2_label">...</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="kpi3_value">...</div>
+                <div class="metric-label" id="kpi3_label">...</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="kpi4_value">...</div>
+                <div class="metric-label" id="kpi4_label">...</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title" id="chart1_title">...</div>
+                <canvas id="chart1"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title" id="chart2_title">...</div>
+                <canvas id="chart2"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title" id="chart3_title">...</div>
+                <canvas id="chart3"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title" id="chart4_title">...</div>
+                <canvas id="chart4"></canvas>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  DATE UTILITIES
+// ─────────────────────────────────────────────────────────────
+const MONTH_NAMES = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+];
+
+function tryParseDate(val) {
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+function extractDateParts(val) {
+    const d = tryParseDate(val);
+    if (!d) return { year: null, month: null };
+    return {
+        year:  String(d.getFullYear()),
+        month: MONTH_NAMES[d.getMonth()]
+    };
+}
+
+/**
+ * Derives ALL unique filter options directly from rawData.
+ * This is the ground-truth source — it covers the entire dataset,
+ * not just the 20-30 row sample the LLM saw.
+ *
+ * Returns an object keyed by filterId:
+ *   { filter1: ["2023","2024","2025"], filter2: ["January",...] }
+ */
+function deriveOptionsFromData(filters, rawData) {
+    const derived = {};
+
+    filters.forEach(filter => {
+        const col      = filter.column_name;
+        const ftype    = filter.filter_type || 'exact';
+        const valueSet = new Set();
+
+        rawData.forEach(row => {
+            const val = row[col];
+            if (val === null || val === undefined || val === '') return;
+
+            if (ftype === 'year') {
+                const parts = extractDateParts(val);
+                if (parts.year) valueSet.add(parts.year);
+            } else if (ftype === 'month') {
+                const parts = extractDateParts(val);
+                if (parts.month) valueSet.add(parts.month);
+            } else {
+                valueSet.add(String(val));
+            }
+        });
+
+        if (ftype === 'year') {
+            // Sort numerically ascending
+            derived[filter.id] = [...valueSet].sort((a, b) => Number(a) - Number(b));
+        } else if (ftype === 'month') {
+            // Sort by calendar order
+            derived[filter.id] = MONTH_NAMES.filter(m => valueSet.has(m));
+        } else {
+            derived[filter.id] = [...valueSet].sort();
+        }
+    });
+
+    return derived;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MAIN INIT
+// ─────────────────────────────────────────────────────────────
+function initializeDashboardWithData(dashboardConfig, rawData) {
+    const loader             = document.getElementById('loader');
+    const dashboardContainer = document.getElementById('dashboard');
+    const chartInstances     = {};
+    const fullData           = rawData;
+    const config             = dashboardConfig;
+
+    const generateColors = (num) => {
+        const baseColors = [
+            '#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6',
+            '#1abc9c','#34495e','#e67e22','#95a5a6','#d35400'
+        ];
+        return Array.from({length: num}, (_, i) =>
+            i < baseColors.length ? baseColors[i] : `hsl(${(i * 137.5) % 360}, 65%, 55%)`
+        );
+    };
+
+    // ── Derive ground-truth options from the full rawData ──────────────────
+    const derivedOptions = deriveOptionsFromData(config.filters || [], fullData);
+
+    // ── Build filters ───────────────────────────────────────────────────────
+    function createFilters() {
+        const filterContainer = document.getElementById('filterContainer');
+        filterContainer.innerHTML = '';
+
+        if (!config.filters || config.filters.length === 0) {
+            filterContainer.style.display = 'none';
+            return;
+        }
+
+        config.filters.forEach(filter => {
+            if (!filter.column_name) return;
+
+            // Use ground-truth options from rawData; fall back to LLM config options
+            const options = (derivedOptions[filter.id] && derivedOptions[filter.id].length > 0)
+                ? derivedOptions[filter.id]
+                : (filter.options || []);
+
+            if (options.length === 0) return; // nothing to filter by
+
+            const filterGroup = document.createElement('div');
+            filterGroup.className = 'filter-group';
+
+            const label = document.createElement('label');
+            label.htmlFor  = filter.id;
+            label.textContent = filter.label;
+
+            const select = document.createElement('select');
+            select.id                    = filter.id;
+            select.dataset.columnName    = filter.column_name;
+            select.dataset.filterType    = filter.filter_type || 'exact';
+
+            select.add(new Option(`All ${filter.label.split(' ').pop()}s`, 'all'));
+            options.forEach(opt => select.add(new Option(opt, opt)));
+
+            select.addEventListener('change', applyFiltersAndRedraw);
+
+            filterGroup.appendChild(label);
+            filterGroup.appendChild(select);
+            filterContainer.appendChild(filterGroup);
+        });
+    }
+
+    // ── Apply active filters to produce a filtered slice of the data ────────
+    function applyFiltersAndRedraw() {
+        let filteredData = [...fullData];
+
+        (config.filters || []).forEach(filter => {
+            const select = document.getElementById(filter.id);
+            if (!select) return;
+
+            const selectedValue = select.value;
+            if (selectedValue === 'all') return;
+
+            const col    = filter.column_name;
+            const ftype  = filter.filter_type || 'exact';
+
+            filteredData = filteredData.filter(row => {
+                const cellValue = row[col];
+                if (ftype === 'year') {
+                    return extractDateParts(cellValue).year === selectedValue;
+                } else if (ftype === 'month') {
+                    return extractDateParts(cellValue).month === selectedValue;
+                } else if (ftype === 'contains') {
+                    return String(cellValue).includes(selectedValue);
+                } else {
+                    return String(cellValue) === selectedValue;
+                }
+            });
+        });
+
+        updateDashboardUI(filteredData);
+    }
+
+    // ── Render KPIs and charts from a (possibly filtered) dataset ───────────
+    function updateDashboardUI(data) {
+        document.getElementById('dashboardTitle').textContent    = config.header.title;
+        document.getElementById('dashboardSubtitle').textContent = config.header.subtitle;
+
+        // KPIs
+        config.kpi_cards.forEach((kpi, i) => {
+            const idx = i + 1;
+            document.getElementById(`kpi${idx}_label`).textContent = kpi.label;
+
+            const col    = kpi.column_name;
+            const values = data.map(row => row[col]).filter(v => v !== null && v !== undefined);
+            let value    = 0;
+
+            switch (kpi.calculation) {
+                case 'SUM':
+                    value = values.reduce((acc, v) => acc + parseFloat(v || 0), 0);
+                    break;
+                case 'AVERAGE': {
+                    const sum = values.reduce((acc, v) => acc + parseFloat(v || 0), 0);
+                    value = values.length > 0 ? sum / values.length : 0;
+                    break;
+                }
+                case 'COUNT':
+                    value = values.length;
+                    break;
+                case 'COUNT_DISTINCT':
+                    value = new Set(values).size;
+                    break;
+            }
+
+            let display;
+            if (kpi.prefix === '$') {
+                display = value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+            } else if (typeof value === 'number' && value >= 1000) {
+                display = (value / 1000).toFixed(1) + 'K';
+            } else {
+                display = typeof value === 'number' ? value.toLocaleString('en-US') : value;
+            }
+
+            document.getElementById(`kpi${idx}_value`).textContent = display;
+        });
+
+        // Charts
+        config.charts.forEach(chartConfig => {
+            const { chart_id, title, type, data: cdc } = chartConfig;
+            document.getElementById(`${chart_id}_title`).textContent = title;
+
+            const ctx = document.getElementById(chart_id).getContext('2d');
+
+            // Aggregate
+            const agg = {};
+            data.forEach(row => {
+                const lbl = row[cdc.label_column];
+                const val = parseFloat(row[cdc.value_column] || 0);
+                if (lbl !== undefined && !isNaN(val)) {
+                    agg[lbl] = (agg[lbl] || 0) + val;
+                }
+            });
+
+            let sorted = Object.entries(agg).sort((a, b) => b[1] - a[1]);
+
+            if (type === 'line') {
+                // Sort chronologically if labels look like dates
+                sorted.sort((a, b) => {
+                    const da = new Date(a[0]), db = new Date(b[0]);
+                    if (!isNaN(da) && !isNaN(db)) return da - db;
+                    return String(a[0]).localeCompare(String(b[0]), undefined, { numeric: true });
+                });
+            } else if (sorted.length > 8) {
+                sorted = sorted.slice(0, 8);
+            }
+
+            const labels = sorted.map(x => x[0]);
+            const vals   = sorted.map(x => x[1]);
+            const colors = generateColors(labels.length);
+
+            if (chartInstances[chart_id]) chartInstances[chart_id].destroy();
+
+            chartInstances[chart_id] = new Chart(ctx, {
+                type,
+                data: {
+                    labels,
+                    datasets: [{
+                        label:           cdc.dataset_label,
+                        data:            vals,
+                        backgroundColor: colors,
+                        borderColor:     type === 'line' ? (colors[0] || '#3498db') : '#fff',
+                        borderWidth:     type === 'doughnut' ? 2 : (type === 'line' ? 2.5 : 1),
+                        fill:            false,
+                        tension:         0.3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display:  type === 'doughnut',
+                            position: 'bottom',
+                            labels: { boxWidth: 12, font: { size: 10 } }
+                        }
+                    },
+                    scales: type !== 'doughnut' ? {
+                        y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+                        x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
+                    } : {}
+                }
+            });
+        });
+    }
+
+    // ── Boot ────────────────────────────────────────────────────────────────
+    createFilters();
+    applyFiltersAndRedraw();
+    loader.classList.add('hidden');
+    dashboardContainer.classList.remove('hidden');
+}
+</script>
+
+<script>
+window.addEventListener("message", function (event) {
+    console.log("📩 iframe received message:", event.data);
+    if (!event.data || event.data.type !== "dashboardData") return;
+    initializeDashboardWithData(event.data.config, event.data.rawData);
+});
+</script>
+
+<script>
+
+function requestRegenerate() {
+    const btn = document.getElementById("regenerateBtn");
+
+    // Show loading state
+    btn.classList.add("loading");
+    btn.innerHTML = '<span class="spin-icon">🔄</span> Regenerating…';
+
+    // Tell the parent window (model.html) to force a fresh API call
+    window.parent.postMessage({ type: "regenerateDashboard" }, "*");
+}
+
+// When new dashboardData arrives (after regeneration), reset the button
+const _origOnMessage = window.onmessage;
+window.addEventListener("message", function(event) {
+    if (event.data?.type === "dashboardData") {
+        const btn = document.getElementById("regenerateBtn");
+        if (btn) {
+            btn.classList.remove("loading");
+            btn.innerHTML = "🔄 Regenerate";
+        }
+    }
+});
+
+async function downloadDashboardPDF() {
+    const { jsPDF } = window.jspdf;
+    try {
+        const el = document.getElementById("dashboard");
+        if (!el) { alert("Dashboard has not rendered yet."); return; }
+        window.scrollTo(0, 0);
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+        const imgData   = canvas.toDataURL("image/png");
+        const mmWidth   = canvas.width  * 0.264583;
+        const mmHeight  = canvas.height * 0.264583;
+        const pdf = new jsPDF({ orientation: "p", unit: "mm", format: [mmWidth, mmHeight] });
+        pdf.addImage(imgData, "PNG", 0, 0, mmWidth, mmHeight);
+        pdf.save("dashboard.pdf");
+    } catch (err) {
+        console.error(err);
+        alert("Failed to generate PDF");
+    }
+}
+</script>
+
+</body>
+</html>
