@@ -1,0 +1,66 @@
+[
+  {
+    "id": "sample1",
+    "name": "Sample Client One",
+    "url": "https://www.example.com/",
+    "industry": "Retail / E-commerce",
+    "competitors": [
+      "Competitor A",
+      "Competitor B",
+      "Competitor C"
+    ],
+    "our_services_for_client": [
+      "Enterprise Data Warehouse Build",
+      "BI Reporting (Power BI)",
+      "Data Pipeline Development"
+    ],
+    "all_our_services": [
+      "Enterprise Data Warehouse Build",
+      "BI Reporting (Power BI / Tableau)",
+      "Data Pipeline Development",
+      "NLQ / Conversational BI",
+      "AI Agent Automation",
+      "Predictive Analytics",
+      "Data Quality & Governance",
+      "Cloud Migration (Azure / AWS)",
+      "Real-time Streaming Analytics"
+    ],
+    "email_db_config": {
+      "mode": "connection",
+      "connection_name": "meeting_intel"
+    },
+    "ppt_history": []
+  },
+  {
+    "id": "sample2",
+    "name": "Sample Client Two",
+    "url": "https://www.example-two.com",
+    "industry": "Manufacturing",
+    "competitors": [
+      "Competitor D",
+      "Competitor E",
+      "Competitor F"
+    ],
+    "our_services_for_client": [
+      "Reporting - SAP BusinessObjects (SAP BO)",
+      "Reporting - Excel (VBA / VB Automation)",
+      "Application & Frontend Maintenance (.NET, VB, Internal Apps)",
+      "Offshore Support - Oracle Database"
+    ],
+    "all_our_services": [
+      "Enterprise Data Warehouse Build",
+      "BI Reporting (Power BI / Tableau / SAP BO / Excel VBA)",
+      "Data Pipeline Development",
+      "Application Development & Maintenance (.NET, VB)",
+      "Meeting Intelligence",
+      "NLQ / Conversational BI",
+      "AI Agent Automation",
+      "Predictive Analytics",
+      "Data Quality & Governance",
+      "Cloud Migration (Azure / AWS)",
+      "Real-time Streaming Analytics",
+      "Offshore Resource Augmentation (Oracle DB, SAP BO, .NET, VB)"
+    ],
+    "ppt_history": []
+  }
+]

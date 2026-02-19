@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}Token Quotas — Nexus{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-coins me-2"></i>Token Quota Management</h2>
+        <p class="text-muted mb-0">Set per-user daily token limits. Leave blank to use the role default (1M).</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="text-muted small" id="lastRefresh"></span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadQuotas()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4" id="summaryCards">
+    <div class="col-6 col-md-3">
+        <div class="agent-card text-center py-3">
+            <div class="fs-3 fw-bold text-primary" id="cardTotal">—</div>
+            <div class="text-muted small">Total Users</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="agent-card text-center py-3">
+            <div class="fs-3 fw-bold text-warning" id="cardCustom">—</div>
+            <div class="text-muted small">Custom Quotas</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="agent-card text-center py-3">
+            <div class="fs-3 fw-bold text-danger" id="cardOver80">—</div>
+            <div class="text-muted small">Over 80% Today</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="agent-card text-center py-3">
+            <div class="fs-3 fw-bold text-success" id="cardTotalUsed">—</div>
+            <div class="text-muted small">Total Tokens Today</div>
+        </div>
+    </div>
+</div>
+
+<!-- Main table -->
+<div class="agent-card">
+    <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
+        <div class="input-group" style="max-width:280px;">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="searchInput" placeholder="Search users…"
+                   oninput="filterTable()">
+        </div>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="roleFilter" onchange="filterTable()" style="width:auto;">
+                <option value="">All roles</option>
+                <option value="admin">Admin</option>
+                <option value="dev">Dev</option>
+                <option value="user">User</option>
+            </select>
+            <select class="form-select form-select-sm" id="quotaFilter" onchange="filterTable()" style="width:auto;">
+                <option value="">All quotas</option>
+                <option value="custom">Custom only</option>
+                <option value="default">Default only</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Daily Quota</th>
+                    <th>Used Today</th>
+                    <th style="min-width:160px;">Usage</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="quotaBody">
+                <tr><td colspan="6" class="text-center py-4 text-muted">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Quota Modal -->
+<div class="modal fade" id="editQuotaModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-coins me-2"></i>Set Token Quota</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="editQuotaError" class="alert alert-danger d-none"></div>
+                <input type="hidden" id="editQuotaUserId">
+                <p class="mb-1 text-muted small">User: <strong id="editQuotaUsername"></strong></p>
+                <p class="mb-3 text-muted small">Role default: <strong id="editQuotaDefault"></strong></p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Daily Token Limit</label>
+                    <input type="number" class="form-control" id="editQuotaValue"
+                           min="1000" step="100000" placeholder="e.g. 2000000">
+                    <div class="form-text">Leave blank to use the role default (1,000,000).</div>
+                </div>
+                <!-- Quick presets -->
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    <span class="text-muted small me-1">Quick:</span>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="setPreset(500000)">500K</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="setPreset(1000000)">1M</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="setPreset(2000000)">2M</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="setPreset(5000000)">5M</button>
+                    <button class="btn btn-outline-secondary btn-sm py-0" onclick="setPreset(10000000)">10M</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm me-auto"
+                        onclick="resetToDefault()" title="Remove custom quota and use role default">
+                    <i class="fas fa-undo me-1"></i>Reset to Default
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveQuota()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const ROLE_DEFAULT = 1_000_000;
+
+    const ROLE_BADGE = {
+        admin: '<span class="badge bg-danger">Admin</span>',
+        dev:   '<span class="badge bg-warning text-dark">Dev</span>',
+        user:  '<span class="badge bg-secondary">User</span>',
+    };
+
+    let _rows = [];
+
+    function fmt(n) {
+        if (n == null) return '—';
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (n >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
+        return n.toLocaleString();
+    }
+
+    function esc(str) {
+        return String(str ?? '').replace(/[&<>"']/g, m =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    function barColor(pct) {
+        if (pct >= 90) return '#ef4444';
+        if (pct >= 70) return '#f59e0b';
+        return '#22c55e';
+    }
+
+    async function loadQuotas() {
+        const tbody = document.getElementById('quotaBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Loading…</td></tr>';
+        try {
+            const res = await fetch('/api/admin/token-quotas');
+            _rows = await res.json();
+            renderTable(_rows);
+            updateSummary(_rows);
+            document.getElementById('lastRefresh').textContent =
+                'Updated ' + new Date().toLocaleTimeString();
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Failed to load data.</td></tr>';
+        }
+    }
+
+    function renderTable(rows) {
+        const tbody = document.getElementById('quotaBody');
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No users found.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(u => {
+            const limit   = u.limit ?? ROLE_DEFAULT;
+            const used    = u.used_today ?? 0;
+            const pct     = Math.min(100, limit ? Math.round(used / limit * 100) : 0);
+            const custom  = u.custom_quota;
+            const quotaLabel = custom
+                ? `<span class="fw-semibold text-primary">${fmt(limit)}</span> <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:.65rem;">custom</span>`
+                : `<span class="text-muted">${fmt(limit)}</span> <span class="badge bg-light text-secondary border ms-1" style="font-size:.65rem;">default</span>`;
+
+            return `
+            <tr data-role="${esc(u.role)}" data-custom="${custom ? '1' : '0'}"
+                data-username="${esc(u.username)}">
+                <td><strong>${esc(u.username)}</strong></td>
+                <td>${ROLE_BADGE[u.role] || esc(u.role)}</td>
+                <td>${quotaLabel}</td>
+                <td class="${pct >= 90 ? 'text-danger fw-semibold' : pct >= 70 ? 'text-warning fw-semibold' : ''}">
+                    ${fmt(used)}
+                </td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="flex:1;background:rgba(0,0,0,.08);border-radius:4px;height:6px;overflow:hidden;">
+                            <div style="width:${pct}%;height:100%;background:${barColor(pct)};border-radius:4px;transition:width .4s;"></div>
+                        </div>
+                        <span class="text-muted" style="font-size:.75rem;min-width:32px;">${pct}%</span>
+                    </div>
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary"
+                            onclick='openEditModal(${JSON.stringify(u)})'>
+                        <i class="fas fa-edit me-1"></i>Set Quota
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updateSummary(rows) {
+        const total    = rows.length;
+        const custom   = rows.filter(r => r.custom_quota).length;
+        const over80   = rows.filter(r => r.limit && r.used_today / r.limit >= 0.8).length;
+        const totalUsed = rows.reduce((s, r) => s + (r.used_today || 0), 0);
+
+        document.getElementById('cardTotal').textContent    = total;
+        document.getElementById('cardCustom').textContent   = custom;
+        document.getElementById('cardOver80').textContent   = over80;
+        document.getElementById('cardTotalUsed').textContent = fmt(totalUsed);
+    }
+
+    function filterTable() {
+        const q       = document.getElementById('searchInput').value.toLowerCase();
+        const role    = document.getElementById('roleFilter').value;
+        const quota   = document.getElementById('quotaFilter').value;
+        const filtered = _rows.filter(u => {
+            if (q    && !u.username.toLowerCase().includes(q)) return false;
+            if (role && u.role !== role) return false;
+            if (quota === 'custom'  && !u.custom_quota) return false;
+            if (quota === 'default' &&  u.custom_quota) return false;
+            return true;
+        });
+        renderTable(filtered);
+    }
+
+    // ── Modal ────────────────────────────────────────────────────────
+    function openEditModal(user) {
+        document.getElementById('editQuotaUserId').value    = user.id;
+        document.getElementById('editQuotaUsername').textContent = user.username;
+        document.getElementById('editQuotaDefault').textContent  = fmt(ROLE_DEFAULT) + ' (role default)';
+        document.getElementById('editQuotaValue').value    = user.custom_quota ? (user.token_quota ?? user.limit ?? '') : '';
+        document.getElementById('editQuotaError').classList.add('d-none');
+        new bootstrap.Modal(document.getElementById('editQuotaModal')).show();
+    }
+
+    function setPreset(val) {
+        document.getElementById('editQuotaValue').value = val;
+    }
+
+    async function saveQuota() {
+        const errEl   = document.getElementById('editQuotaError');
+        const userId  = document.getElementById('editQuotaUserId').value;
+        const rawVal  = document.getElementById('editQuotaValue').value.trim();
+        errEl.classList.add('d-none');
+
+        const quota = rawVal === '' ? null : parseInt(rawVal, 10);
+        if (rawVal !== '' && (isNaN(quota) || quota < 1000)) {
+            errEl.textContent = 'Quota must be at least 1,000 tokens.';
+            errEl.classList.remove('d-none');
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/admin/token-quotas/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token_quota: quota }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editQuotaModal')).hide();
+                loadQuotas();
+            } else {
+                errEl.textContent = data.message || 'Failed to update quota.';
+                errEl.classList.remove('d-none');
+            }
+        } catch (e) {
+            errEl.textContent = 'Network error.';
+            errEl.classList.remove('d-none');
+        }
+    }
+
+    async function resetToDefault() {
+        const errEl  = document.getElementById('editQuotaError');
+        const userId = document.getElementById('editQuotaUserId').value;
+        errEl.classList.add('d-none');
+        try {
+            const res = await fetch(`/api/admin/token-quotas/${userId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token_quota: null }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editQuotaModal')).hide();
+                loadQuotas();
+            } else {
+                errEl.textContent = data.message || 'Failed to reset quota.';
+                errEl.classList.remove('d-none');
+            }
+        } catch (e) {
+            errEl.textContent = 'Network error.';
+            errEl.classList.remove('d-none');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadQuotas);
+</script>
+{% endblock %}

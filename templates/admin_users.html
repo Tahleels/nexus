@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}User Management — Nexus{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-users-cog me-2"></i>User Management</h2>
+        <p class="text-muted mb-0">Manage users, roles and access</p>
+    </div>
+    <button class="btn btn-primary" onclick="showCreateUserModal()">
+        <i class="fas fa-user-plus me-2"></i>New User
+    </button>
+</div>
+
+<!-- ── USERS ── -->
+<div id="panel-users">
+    <div class="agent-card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Created</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">Loading…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── CREATE USER MODAL ── -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Create User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="createUserError" class="alert alert-danger d-none"></div>
+                <div class="mb-3">
+                    <label class="form-label">Username <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="newUsername" placeholder="e.g. john_doe" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email <span class="text-danger">*</span></label>
+                    <input type="email" class="form-control" id="newEmail" placeholder="john@example.com" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control" id="newPassword" placeholder="Min. 8 characters">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Role <span class="text-danger">*</span></label>
+                    <select class="form-select" id="newRole">
+                        <option value="user">User — assigned agents only</option>
+                        <option value="dev">Dev — all APIs except user management</option>
+                        <option value="admin">Admin — full access</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createUser()">
+                    <i class="fas fa-save me-1"></i>Create User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── EDIT USER MODAL ── -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-edit me-2"></i>Edit User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="editUserError" class="alert alert-danger d-none"></div>
+                <input type="hidden" id="editUserId">
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" id="editEmail" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Role</label>
+                    <select class="form-select" id="editRole">
+                        <option value="user">User</option>
+                        <option value="dev">Dev</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="editActive">
+                        <option value="1">Active</option>
+                        <option value="0">Disabled</option>
+                    </select>
+                </div>
+                <hr>
+                <p class="text-muted small mb-2">Reset password (leave blank to keep current)</p>
+                <input type="password" class="form-control" id="editNewPassword"
+                    placeholder="New password (optional, min 8 chars)">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditUser()">
+                    <i class="fas fa-save me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const ROLE_BADGE = {
+        admin: '<span class="badge bg-danger">Admin</span>',
+        dev: '<span class="badge bg-warning text-dark">Dev</span>',
+        user: '<span class="badge bg-secondary">User</span>',
+    };
+
+    let _allUsers = [];
+
+    // ── USERS ────────────────────────────────────────────────────
+    async function loadUsers() {
+        const tbody = document.getElementById('usersBody');
+        try {
+            const res = await fetch('/api/admin/users');
+            _allUsers = await res.json();
+
+            if (!_allUsers.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No users found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = _allUsers.map(u => `
+            <tr>
+                <td><strong>${esc(u.username)}</strong></td>
+                <td>${esc(u.email)}</td>
+                <td>${ROLE_BADGE[u.role] || u.role}</td>
+                <td>${u.is_active
+                    ? '<span class="status-badge status-active">Active</span>'
+                    : '<span class="status-badge status-inactive">Disabled</span>'}</td>
+                <td class="text-muted small">${u.last_login ? fmtDate(u.last_login) : '—'}</td>
+                <td class="text-muted small">${fmtDate(u.created_at)}</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary me-1"
+                            onclick='openEditModal(${JSON.stringify(u)})'>
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-1"
+                            title="Sync portal assignments"
+                            onclick="syncPortalUser(${u.id}, '${esc(u.username)}', this)">
+                        <i class="fas fa-link"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            onclick="deleteUser(${u.id}, '${esc(u.username)}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Failed to load users.</td></tr>';
+        }
+    }
+
+    // ── USERS CRUD ───────────────────────────────────────────────
+    function showCreateUserModal() {
+        ['newUsername', 'newEmail', 'newPassword'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('newRole').value = 'user';
+        document.getElementById('createUserError').classList.add('d-none');
+        new bootstrap.Modal(document.getElementById('createUserModal')).show();
+    }
+
+    async function createUser() {
+        const errEl = document.getElementById('createUserError');
+        errEl.classList.add('d-none');
+        const body = {
+            username: document.getElementById('newUsername').value.trim(),
+            email: document.getElementById('newEmail').value.trim(),
+            password: document.getElementById('newPassword').value,
+            role: document.getElementById('newRole').value,
+        };
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
+                _allUsers = [];
+                loadUsers();
+            } else {
+                errEl.textContent = data.message || 'Failed to create user.';
+                errEl.classList.remove('d-none');
+            }
+        } catch (e) { errEl.textContent = 'Network error.'; errEl.classList.remove('d-none'); }
+    }
+
+    function openEditModal(user) {
+        document.getElementById('editUserId').value = user.id;
+        document.getElementById('editEmail').value = user.email;
+        document.getElementById('editRole').value = user.role;
+        document.getElementById('editActive').value = user.is_active ? '1' : '0';
+        document.getElementById('editNewPassword').value = '';
+        document.getElementById('editUserError').classList.add('d-none');
+        new bootstrap.Modal(document.getElementById('editUserModal')).show();
+    }
+
+    async function saveEditUser() {
+        const errEl = document.getElementById('editUserError');
+        const userId = document.getElementById('editUserId').value;
+        const newPw = document.getElementById('editNewPassword').value;
+        errEl.classList.add('d-none');
+        const body = {
+            email: document.getElementById('editEmail').value.trim(),
+            role_name: document.getElementById('editRole').value,
+            is_active: document.getElementById('editActive').value === '1',
+        };
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) { errEl.textContent = data.message; errEl.classList.remove('d-none'); return; }
+            if (newPw) {
+                const r2 = await fetch(`/api/admin/users/${userId}/reset-password`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_password: newPw })
+                });
+                const d2 = await r2.json();
+                if (!r2.ok) { errEl.textContent = d2.message; errEl.classList.remove('d-none'); return; }
+            }
+            bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+            _allUsers = [];
+            loadUsers();
+        } catch (e) { errEl.textContent = 'Network error.'; errEl.classList.remove('d-none'); }
+    }
+
+    async function syncPortalUser(userId, username, btn) {
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            const res  = await fetch(`/api/admin/nexus/sync-user/${userId}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.synced) {
+                const depts    = data.assigned_depts.length;
+                const projects = data.assigned_projects.length;
+                alert(`${username}: ${data.message}`);
+            } else {
+                alert(`${username}: ${data.message}`);
+            }
+        } catch (e) { alert('Network error during sync.'); }
+        finally { btn.disabled = false; btn.innerHTML = orig; }
+    }
+
+    async function deleteUser(userId, username) {
+        if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (res.ok) { _allUsers = []; loadUsers(); }
+            else alert(data.message || 'Failed to delete user.');
+        } catch (e) { alert('Network error.'); }
+    }
+
+    // ── HELPERS ──────────────────────────────────────────────────
+    function esc(str) {
+        return String(str ?? '').replace(/[&<>"']/g, m =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+    function fmtDate(str) {
+        if (!str) return '—';
+        const d = new Date(str);
+        return isNaN(d) ? str : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadUsers);
+</script>
+{% endblock %}

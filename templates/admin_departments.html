@@ -1,0 +1,821 @@
+{% extends "base.html" %}
+{% block title %}Departments & Projects — Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+.org-card {
+    background: var(--card-bg, #fff);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    margin-bottom: 12px;
+    border-left: 4px solid #6366f1;
+    transition: box-shadow .15s;
+}
+.org-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.org-card .card-title { font-weight: 700; font-size: .95rem; margin: 0; }
+.org-card .card-desc  { font-size: .82rem; color: #6e6265; margin-top: 3px; }
+.org-card .card-meta  { font-size: .74rem; color: #a89b9d; margin-top: 8px; }
+.color-dot {
+    display: inline-block; width: 12px; height: 12px;
+    border-radius: 50%; vertical-align: middle; margin-right: 5px;
+}
+.dept-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 20px;
+    font-size: .72rem; font-weight: 600; color: #fff;
+}
+.role-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: .7rem; font-weight: 600; text-transform: uppercase;
+}
+.role-chip.admin   { background: #fee2e2; color: #b91c1c; }
+.role-chip.dev     { background: #dbeafe; color: #1d4ed8; }
+.role-chip.user    { background: #f2eeee; color: #574c4f; }
+.user-row td { vertical-align: middle; font-size: .86rem; }
+.resource-row td { vertical-align: middle; font-size: .86rem; }
+.empty-state { text-align: center; padding: 48px 0; color: #a89b9d; }
+.empty-state i { font-size: 2.5rem; margin-bottom: 12px; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-sitemap me-2"></i>Departments &amp; Projects</h2>
+        <p class="text-muted mb-0">Manage organizational structure and resource assignments</p>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="orgTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDepts" type="button">
+            <i class="fas fa-building me-1"></i>Departments
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabProjects" type="button">
+            <i class="fas fa-folder-open me-1"></i>Projects
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabUsers" type="button">
+            <i class="fas fa-users me-1"></i>User Assignments
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabResources" type="button">
+            <i class="fas fa-robot me-1"></i>Resource Assignments
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- ══════════════════ DEPARTMENTS TAB ══════════════════════ -->
+    <div class="tab-pane fade show active" id="tabDepts">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <input type="text" id="deptSearch" class="form-control" style="max-width:280px"
+                   placeholder="Search departments…" autocomplete="off" oninput="renderDepts()">
+            <button class="btn btn-primary" onclick="openDeptModal(null)">
+                <i class="fas fa-plus me-1"></i>New Department
+            </button>
+        </div>
+        <div id="deptList" class="row g-3">
+            <div class="col-12 empty-state"><i class="fas fa-spinner fa-spin"></i>Loading…</div>
+        </div>
+    </div>
+
+    <!-- ══════════════════ PROJECTS TAB ══════════════════════════ -->
+    <div class="tab-pane fade" id="tabProjects">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <input type="text" id="projSearch" class="form-control" style="max-width:280px"
+                   placeholder="Search projects…" autocomplete="off" oninput="renderProjects()">
+            <button class="btn btn-primary" onclick="openProjModal(null)">
+                <i class="fas fa-plus me-1"></i>New Project
+            </button>
+        </div>
+        <div id="projList" class="row g-3">
+            <div class="col-12 empty-state"><i class="fas fa-spinner fa-spin"></i>Loading…</div>
+        </div>
+    </div>
+
+    <!-- ══════════════════ USER ASSIGNMENTS TAB ══════════════════ -->
+    <div class="tab-pane fade" id="tabUsers">
+        <div class="mb-3">
+            <input type="text" id="userSearch" class="form-control" style="max-width:300px"
+                   placeholder="Search users…" autocomplete="off" oninput="renderUsers()">
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Departments</th>
+                        <th>Projects</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTbody">
+                    <tr><td colspan="6" class="text-center py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ══════════════════ RESOURCE ASSIGNMENTS TAB ═════════════ -->
+    <div class="tab-pane fade" id="tabResources">
+        <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <select id="resTypeFilter" class="form-select" style="max-width:200px"
+                    onchange="loadResources()">
+                <option value="app_agents">BI Agents</option>
+                <option value="hub_agents">Nexus AI Hub Agents</option>
+                <option value="hub_workflows">Workflows</option>
+                <option value="app_jobs">BI Jobs</option>
+                <option value="hub_jobs">Agent Jobs</option>
+            </select>
+            <input type="text" id="resSearch" class="form-control" style="max-width:240px"
+                   placeholder="Search…" autocomplete="off" oninput="renderResources()">
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Department</th>
+                        <th>Project</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="resTbody">
+                    <tr><td colspan="5" class="text-center py-4">
+                        Select a resource type above</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════ DEPARTMENT MODAL ══════════════════════════════════════════════ -->
+<div class="modal fade" id="deptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deptModalTitle">Department</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deptId">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="deptName" placeholder="e.g. Engineering" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Description</label>
+                    <textarea class="form-control" id="deptDesc" rows="2"
+                              placeholder="Optional description"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Color</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="color" class="form-control form-control-color"
+                               id="deptColor" value="#6366f1" style="width:50px">
+                        <div class="color-presets d-flex gap-1 flex-wrap">
+                            <span class="color-preset" style="background:#6366f1"
+                                  onclick="setColor('deptColor','#6366f1')"></span>
+                            <span class="color-preset" style="background:#ec4899"
+                                  onclick="setColor('deptColor','#ec4899')"></span>
+                            <span class="color-preset" style="background:#14b8a6"
+                                  onclick="setColor('deptColor','#14b8a6')"></span>
+                            <span class="color-preset" style="background:#f59e0b"
+                                  onclick="setColor('deptColor','#f59e0b')"></span>
+                            <span class="color-preset" style="background:#10b981"
+                                  onclick="setColor('deptColor','#10b981')"></span>
+                            <span class="color-preset" style="background:#ef4444"
+                                  onclick="setColor('deptColor','#ef4444')"></span>
+                            <span class="color-preset" style="background:#8b5cf6"
+                                  onclick="setColor('deptColor','#8b5cf6')"></span>
+                            <span class="color-preset" style="background:#06b6d4"
+                                  onclick="setColor('deptColor','#06b6d4')"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveDept()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ PROJECT MODAL ═════════════════════════════════════════════════ -->
+<div class="modal fade" id="projModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="projModalTitle">Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="projId">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="projName" placeholder="e.g. Q2 Analytics" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Description</label>
+                    <textarea class="form-control" id="projDesc" rows="2"
+                              placeholder="Optional description"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Color</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="color" class="form-control form-control-color"
+                               id="projColor" value="#0ea5e9" style="width:50px">
+                        <div class="color-presets d-flex gap-1 flex-wrap">
+                            <span class="color-preset" style="background:#0ea5e9"
+                                  onclick="setColor('projColor','#0ea5e9')"></span>
+                            <span class="color-preset" style="background:#6366f1"
+                                  onclick="setColor('projColor','#6366f1')"></span>
+                            <span class="color-preset" style="background:#ec4899"
+                                  onclick="setColor('projColor','#ec4899')"></span>
+                            <span class="color-preset" style="background:#14b8a6"
+                                  onclick="setColor('projColor','#14b8a6')"></span>
+                            <span class="color-preset" style="background:#f59e0b"
+                                  onclick="setColor('projColor','#f59e0b')"></span>
+                            <span class="color-preset" style="background:#10b981"
+                                  onclick="setColor('projColor','#10b981')"></span>
+                            <span class="color-preset" style="background:#ef4444"
+                                  onclick="setColor('projColor','#ef4444')"></span>
+                            <span class="color-preset" style="background:#8b5cf6"
+                                  onclick="setColor('projColor','#8b5cf6')"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveProj()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ USER ORG ASSIGNMENT MODAL ═════════════════════════════════════ -->
+<div class="modal fade" id="userOrgModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Departments &amp; Projects — <span id="userOrgName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="userOrgId">
+                <p class="text-muted small mb-3">
+                    Check a department or project to assign the user, then set their
+                    <strong>role</strong> within that group. The role is injected into every
+                    agent conversation so the agent knows the user's responsibility level.
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Departments</label>
+                        <div id="userDeptChecks" class="border rounded p-2"
+                             style="max-height:300px;overflow-y:auto;"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Projects</label>
+                        <div id="userProjChecks" class="border rounded p-2"
+                             style="max-height:300px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserOrg()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ RESOURCE ORG ASSIGNMENT MODAL ══════════════════════════════════ -->
+<div class="modal fade" id="resOrgModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Departments &amp; Projects — <span id="resOrgName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="resOrgId">
+                <input type="hidden" id="resOrgTable">
+                <p class="text-muted small mb-3">Select one or more departments and projects for this resource.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Departments</label>
+                        <div id="resDeptChecks" class="border rounded p-2"
+                             style="max-height:300px;overflow-y:auto;"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Projects</label>
+                        <div id="resProjChecks" class="border rounded p-2"
+                             style="max-height:300px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveResOrg()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.color-preset {
+    display: inline-block; width: 22px; height: 22px;
+    border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+    transition: border-color .15s;
+}
+.color-preset:hover { border-color: #251e21; }
+</style>
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allDepts = [], allProjects = [], allUsers = [], allResources = [];
+
+// ── Bootstrap modal helpers ────────────────────────────────────────────────────
+function showModal(id) { new bootstrap.Modal(document.getElementById(id)).show(); }
+function hideModal(id)  {
+    const el = document.getElementById(id);
+    const m  = bootstrap.Modal.getInstance(el);
+    if (m) m.hide();
+}
+
+function toast(msg, ok = true) {
+    const t = document.createElement('div');
+    t.className = `alert alert-${ok?'success':'danger'} position-fixed`;
+    t.style.cssText = 'top:1rem;right:1rem;z-index:9999;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+function setColor(inputId, hex) {
+    document.getElementById(inputId).value = hex;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEPARTMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadDepts() {
+    const res = await fetch('/api/admin/departments');
+    allDepts = await res.json();
+    renderDepts();
+    populateDeptDropdowns();
+}
+
+function renderDepts() {
+    const q = (document.getElementById('deptSearch').value || '').toLowerCase();
+    const list = document.getElementById('deptList');
+    const filtered = allDepts.filter(d => d.name.toLowerCase().includes(q) ||
+                                         (d.description||'').toLowerCase().includes(q));
+    if (!filtered.length) {
+        list.innerHTML = `<div class="col-12 empty-state">
+            <i class="fas fa-building"></i>No departments found.
+        </div>`;
+        return;
+    }
+    list.innerHTML = filtered.map(d => `
+        <div class="col-md-6 col-lg-4">
+            <div class="org-card" style="border-left-color:${d.color}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <span class="color-dot" style="background:${d.color}"></span>
+                        <span class="card-title">${esc(d.name)}</span>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                onclick="openDeptModal(${d.id})" title="Edit">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                                onclick="deleteDept(${d.id},'${esc(d.name)}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${d.description ? `<p class="card-desc mt-1">${esc(d.description)}</p>` : ''}
+                <div class="card-meta d-flex gap-3 mt-2">
+                    <span><i class="fas fa-folder-open me-1"></i>${d.project_count} project${d.project_count==1?'':'s'}</span>
+                    <span><i class="fas fa-users me-1"></i>${d.user_count} user${d.user_count==1?'':'s'}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openDeptModal(id) {
+    const d = id ? allDepts.find(x => x.id === id) : null;
+    document.getElementById('deptModalTitle').textContent = d ? 'Edit Department' : 'New Department';
+    document.getElementById('deptId').value   = d ? d.id   : '';
+    document.getElementById('deptName').value = d ? d.name : '';
+    document.getElementById('deptDesc').value = d ? (d.description||'') : '';
+    document.getElementById('deptColor').value= d ? d.color : '#6366f1';
+    showModal('deptModal');
+}
+
+async function saveDept() {
+    const id   = document.getElementById('deptId').value;
+    const body = {
+        name:        document.getElementById('deptName').value.trim(),
+        description: document.getElementById('deptDesc').value.trim(),
+        color:       document.getElementById('deptColor').value,
+    };
+    if (!body.name) { toast('Name is required', false); return; }
+    const url    = id ? `/api/admin/departments/${id}` : '/api/admin/departments';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.status === 'success') {
+        toast(data.message);
+        hideModal('deptModal');
+        loadDepts();
+    } else {
+        toast(data.message, false);
+    }
+}
+
+async function deleteDept(id, name) {
+    if (!confirm(`Delete department "${name}"? Its projects will be unlinked.`)) return;
+    const res = await fetch(`/api/admin/departments/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    toast(data.message, data.status === 'success');
+    if (data.status === 'success') loadDepts();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROJECTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadProjects() {
+    const res = await fetch('/api/admin/projects');
+    allProjects = await res.json();
+    renderProjects();
+}
+
+function renderProjects() {
+    const q    = (document.getElementById('projSearch').value || '').toLowerCase();
+    const list = document.getElementById('projList');
+    const filtered = allProjects.filter(p =>
+        p.name.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q));
+    if (!filtered.length) {
+        list.innerHTML = `<div class="col-12 empty-state">
+            <i class="fas fa-folder-open"></i>No projects found.
+        </div>`;
+        return;
+    }
+    list.innerHTML = filtered.map(p => `
+        <div class="col-md-6 col-lg-4">
+            <div class="org-card" style="border-left-color:${p.color}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <span class="color-dot" style="background:${p.color}"></span>
+                        <span class="card-title">${esc(p.name)}</span>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                onclick="openProjModal(${p.id})" title="Edit">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                                onclick="deleteProj(${p.id},'${esc(p.name)}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${p.description ? `<p class="card-desc mt-1">${esc(p.description)}</p>` : ''}
+                <div class="card-meta mt-2">
+                    <i class="fas fa-users me-1"></i>${p.user_count} user${p.user_count==1?'':'s'} assigned
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+function openProjModal(id) {
+    const p = id ? allProjects.find(x => x.id === id) : null;
+    document.getElementById('projModalTitle').textContent = p ? 'Edit Project' : 'New Project';
+    document.getElementById('projId').value    = p ? p.id   : '';
+    document.getElementById('projName').value  = p ? p.name : '';
+    document.getElementById('projDesc').value  = p ? (p.description||'') : '';
+    document.getElementById('projColor').value = p ? p.color : '#0ea5e9';
+    showModal('projModal');
+}
+
+async function saveProj() {
+    const id   = document.getElementById('projId').value;
+    const body = {
+        name:        document.getElementById('projName').value.trim(),
+        description: document.getElementById('projDesc').value.trim(),
+        color:       document.getElementById('projColor').value,
+    };
+    if (!body.name) { toast('Name is required', false); return; }
+    const url    = id ? `/api/admin/projects/${id}` : '/api/admin/projects';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.status === 'success') {
+        toast(data.message);
+        hideModal('projModal');
+        loadProjects();
+    } else {
+        toast(data.message, false);
+    }
+}
+
+async function deleteProj(id, name) {
+    if (!confirm(`Delete project "${name}"?`)) return;
+    const res = await fetch(`/api/admin/projects/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    toast(data.message, data.status === 'success');
+    if (data.status === 'success') loadProjects();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USER ASSIGNMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadUsers() {
+    const res = await fetch('/api/admin/users/org-assignments');
+    allUsers = await res.json();
+    renderUsers();
+}
+
+function renderUsers() {
+    const q  = (document.getElementById('userSearch').value || '').toLowerCase();
+    const tb = document.getElementById('userTbody');
+    const filtered = allUsers.filter(u =>
+        u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+    if (!filtered.length) {
+        tb.innerHTML = `<tr><td colspan="6" class="empty-state py-4">
+            <i class="fas fa-users"></i>No users found.</td></tr>`;
+        return;
+    }
+    tb.innerHTML = filtered.map(u => `
+        <tr class="user-row">
+            <td><strong>${esc(u.username)}</strong></td>
+            <td>${esc(u.email)}</td>
+            <td><span class="role-chip ${u.role}">${u.role}</span></td>
+            <td>${u.dept_count} dept${u.dept_count==1?'':'s'}</td>
+            <td>${u.project_count} project${u.project_count==1?'':'s'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary py-0 px-2"
+                        onclick="openUserOrgModal(${u.id},'${esc(u.username)}')">
+                    <i class="fas fa-edit me-1"></i>Assign
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+const ORG_ROLES = ['manager', 'member', 'viewer', 'observer'];
+
+function roleSelect(prefix, id, currentRole) {
+    return `<select class="form-select form-select-sm org-role-sel" style="width:105px;font-size:.75rem;"
+                    id="${prefix}role_${id}" data-id="${id}">
+        ${ORG_ROLES.map(r =>
+            `<option value="${r}"${r === (currentRole||'member') ? ' selected' : ''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`
+        ).join('')}
+    </select>`;
+}
+
+async function openUserOrgModal(userId, username) {
+    document.getElementById('userOrgId').value           = userId;
+    document.getElementById('userOrgName').textContent   = username;
+
+    const res  = await fetch(`/api/admin/users/${userId}/org`);
+    const curr = await res.json();
+
+    // Dept rows — checkbox + role select
+    document.getElementById('userDeptChecks').innerHTML = allDepts.length
+        ? allDepts.map(d => {
+            const assigned = curr.dept_ids.includes(d.id);
+            const role     = curr.dept_roles?.[d.id] || 'member';
+            return `<div class="d-flex align-items-center gap-2 mb-2 udept-row">
+                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                       id="udept_${d.id}" value="${d.id}" ${assigned ? 'checked' : ''}
+                       onchange="toggleOrgRole(this, 'udeptRole_', ${d.id})">
+                <label class="form-check-label d-flex align-items-center gap-1 flex-grow-1"
+                       for="udept_${d.id}" style="cursor:pointer;">
+                    <span class="color-dot" style="background:${d.color}"></span>
+                    <span>${esc(d.name)}</span>
+                </label>
+                <div id="udeptRole_${d.id}" style="display:${assigned ? 'block' : 'none'}">
+                    ${roleSelect('udept', d.id, role)}
+                </div>
+            </div>`;}).join('')
+        : '<p class="text-muted small">No departments yet.</p>';
+
+    // Project rows — checkbox + role select
+    document.getElementById('userProjChecks').innerHTML = allProjects.length
+        ? allProjects.map(p => {
+            const assigned = curr.project_ids.includes(p.id);
+            const role     = curr.project_roles?.[p.id] || 'member';
+            return `<div class="d-flex align-items-center gap-2 mb-2 uproj-row">
+                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                       id="uproj_${p.id}" value="${p.id}" ${assigned ? 'checked' : ''}
+                       onchange="toggleOrgRole(this, 'uprojRole_', ${p.id})">
+                <label class="form-check-label d-flex align-items-center gap-1 flex-grow-1"
+                       for="uproj_${p.id}" style="cursor:pointer;">
+                    <span class="color-dot" style="background:${p.color}"></span>
+                    <span>${esc(p.name)}</span>
+                </label>
+                <div id="uprojRole_${p.id}" style="display:${assigned ? 'block' : 'none'}">
+                    ${roleSelect('uproj', p.id, role)}
+                </div>
+            </div>`;}).join('')
+        : '<p class="text-muted small">No projects yet.</p>';
+
+    showModal('userOrgModal');
+}
+
+function toggleOrgRole(checkbox, prefix, id) {
+    const roleDiv = document.getElementById(prefix + id);
+    if (roleDiv) roleDiv.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+async function saveUserOrg() {
+    const userId = document.getElementById('userOrgId').value;
+
+    const dept_assignments = [...document.querySelectorAll('#userDeptChecks input[type=checkbox]:checked')]
+        .map(el => ({
+            id:   +el.value,
+            role: document.getElementById('udeptRole_' + el.value)
+                    ?.querySelector('select')?.value || 'member',
+        }));
+
+    const project_assignments = [...document.querySelectorAll('#userProjChecks input[type=checkbox]:checked')]
+        .map(el => ({
+            id:   +el.value,
+            role: document.getElementById('uprojRole_' + el.value)
+                    ?.querySelector('select')?.value || 'member',
+        }));
+
+    const res = await fetch(`/api/admin/users/${userId}/org`, {
+        method:  'PUT',
+        headers: {'Content-Type':'application/json'},
+        body:    JSON.stringify({ dept_assignments, project_assignments }),
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+        toast('Assignments saved');
+        hideModal('userOrgModal');
+        loadUsers();
+    } else {
+        toast(data.message || 'Error', false);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RESOURCE ASSIGNMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function loadResources() {
+    const table = document.getElementById('resTypeFilter').value;
+    const res   = await fetch(`/api/admin/resources/${table}/org`);
+    allResources = await res.json();
+    renderResources();
+}
+
+function renderResources() {
+    const q  = (document.getElementById('resSearch').value || '').toLowerCase();
+    const tb = document.getElementById('resTbody');
+    const filtered = allResources.filter(r =>
+        r.name.toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q));
+    if (!filtered.length) {
+        tb.innerHTML = `<tr><td colspan="5" class="empty-state py-4">No resources found.</td></tr>`;
+        return;
+    }
+    const table = document.getElementById('resTypeFilter').value;
+    tb.innerHTML = filtered.map(r => {
+        const deptBadges = (r.dept_ids||[]).map((did, i) => {
+            const name  = (r.dept_names||[])[i] || '';
+            const color = (r.dept_colors||[])[i] || '#a89b9d';
+            return name ? `<span class="dept-badge me-1" style="background:${color}">${esc(name)}</span>` : '';
+        }).join('');
+        const projBadges = (r.project_ids||[]).map((pid, i) => {
+            const name = (r.project_names||[])[i] || '';
+            return name ? `<span class="badge bg-secondary me-1" style="font-size:.72rem">${esc(name)}</span>` : '';
+        }).join('');
+        return `
+        <tr class="resource-row">
+            <td><strong>${esc(r.name)}</strong></td>
+            <td class="text-muted">${r.description ? esc(r.description).slice(0,60)+'…' : '—'}</td>
+            <td>${deptBadges || '<span class="text-muted">—</span>'}</td>
+            <td>${projBadges || '<span class="text-muted">—</span>'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary py-0 px-2"
+                        onclick='openResOrgModal(${JSON.stringify(r.id)}, ${JSON.stringify(r.name)}, "${table}", ${JSON.stringify(r.dept_ids||[])}, ${JSON.stringify(r.project_ids||[])})'>
+                    <i class="fas fa-edit me-1"></i>Assign
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function deptColor(deptId) {
+    if (!deptId) return '#a89b9d';
+    const d = allDepts.find(x => x.id === deptId);
+    return d ? d.color : '#a89b9d';
+}
+
+function openResOrgModal(resId, resName, table, currentDeptIds, currentProjIds) {
+    document.getElementById('resOrgId').value    = resId;
+    document.getElementById('resOrgTable').value = table;
+    document.getElementById('resOrgName').textContent = resName;
+
+    document.getElementById('resDeptChecks').innerHTML = allDepts.length
+        ? allDepts.map(d => {
+            const checked = currentDeptIds.includes(d.id);
+            return `<div class="d-flex align-items-center gap-2 mb-2">
+                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                       id="rdept_${d.id}" value="${d.id}" ${checked ? 'checked' : ''}>
+                <label class="form-check-label d-flex align-items-center gap-1 flex-grow-1"
+                       for="rdept_${d.id}" style="cursor:pointer;">
+                    <span class="color-dot" style="background:${d.color}"></span>
+                    <span>${esc(d.name)}</span>
+                </label>
+            </div>`;}).join('')
+        : '<p class="text-muted small">No departments yet.</p>';
+
+    document.getElementById('resProjChecks').innerHTML = allProjects.length
+        ? allProjects.map(p => {
+            const checked = currentProjIds.includes(p.id);
+            return `<div class="d-flex align-items-center gap-2 mb-2">
+                <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                       id="rproj_${p.id}" value="${p.id}" ${checked ? 'checked' : ''}>
+                <label class="form-check-label d-flex align-items-center gap-1 flex-grow-1"
+                       for="rproj_${p.id}" style="cursor:pointer;">
+                    <span class="color-dot" style="background:${p.color}"></span>
+                    <span>${esc(p.name)}</span>
+                </label>
+            </div>`;}).join('')
+        : '<p class="text-muted small">No projects yet.</p>';
+
+    showModal('resOrgModal');
+}
+
+async function saveResOrg() {
+    const id       = document.getElementById('resOrgId').value;
+    const table    = document.getElementById('resOrgTable').value;
+    const dept_ids = [...document.querySelectorAll('#resDeptChecks input[type=checkbox]:checked')]
+                        .map(el => +el.value);
+    const project_ids = [...document.querySelectorAll('#resProjChecks input[type=checkbox]:checked')]
+                        .map(el => +el.value);
+    const res = await fetch(`/api/admin/resources/${table}/${encodeURIComponent(id)}/org`, {
+        method:  'PUT',
+        headers: {'Content-Type':'application/json'},
+        body:    JSON.stringify({ dept_ids, project_ids }),
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+        toast('Assignment saved');
+        hideModal('resOrgModal');
+        loadResources();
+    } else {
+        toast(data.message, false);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function populateDeptDropdowns() {
+    // No dept-project linking — departments stand alone
+}
+
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async function init() {
+    await loadDepts();
+    await loadProjects();
+    await loadUsers();
+    // Wire tab activation for lazy-loaded resources tab
+    document.querySelector('[data-bs-target="#tabResources"]').addEventListener('shown.bs.tab', () => {
+        if (!allResources.length) loadResources();
+    });
+})();
+</script>
+{% endblock %}

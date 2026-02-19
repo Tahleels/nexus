@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}BI Agent Assignment — Nexus{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-chart-bar me-2"></i>BI Agent Assignment</h2>
+        <p class="text-muted mb-0">Control which users can access each BI Agent</p>
+    </div>
+</div>
+
+<div class="agent-card">
+    <p class="text-muted small mb-3">
+        Select a user below to manage which BI Agents they can access.
+        Admins always see all agents. <strong>Dev</strong> and <strong>User</strong> role accounts only see agents
+        assigned to them.
+    </p>
+    <div class="row g-3">
+        <!-- Left: user list -->
+        <div class="col-md-4">
+            <div style="border:1px solid #e6dfe0; border-radius:8px; overflow:hidden;">
+                <div style="background:#f8f6f6; padding:.6rem 1rem; font-weight:600; font-size:.85rem; border-bottom:1px solid #e6dfe0;">
+                    Users
+                </div>
+                <div id="assignUserList" style="max-height:520px; overflow-y:auto;">
+                    <div class="text-center text-muted py-3 small">Loading…</div>
+                </div>
+            </div>
+        </div>
+        <!-- Right: agent checkboxes -->
+        <div class="col-md-8">
+            <div style="border:1px solid #e6dfe0; border-radius:8px; overflow:hidden; height:100%;">
+                <div style="background:#f8f6f6; padding:.6rem 1rem; font-weight:600; font-size:.85rem; border-bottom:1px solid #e6dfe0; display:flex; justify-content:space-between; align-items:center;">
+                    <span id="assignPanelTitle">Select a user to manage agents</span>
+                    <button class="btn btn-sm btn-primary d-none" id="saveAssignBtn" onclick="saveAssignments()">
+                        <i class="fas fa-save me-1"></i>Save
+                    </button>
+                </div>
+                <div id="assignAgentList" style="padding:1rem; max-height:520px; overflow-y:auto;">
+                    <div class="text-muted small">← Pick a user from the left panel</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const ROLE_BADGE = {
+        admin: '<span class="badge bg-danger">Admin</span>',
+        dev:   '<span class="badge bg-warning text-dark">Dev</span>',
+        user:  '<span class="badge bg-secondary">User</span>',
+    };
+
+    let _allUsers       = [];
+    let _allAgents      = [];
+    let _selectedUserId = null;
+    let _currentAssigned = [];
+
+    function esc(str) {
+        return String(str ?? '').replace(/[&<>"']/g, m =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    async function loadPanel() {
+        try {
+            const [uRes, aRes] = await Promise.all([
+                fetch('/api/admin/users'),
+                fetch('/api/bi-agents'),
+            ]);
+            _allUsers  = await uRes.json();
+            _allAgents = await aRes.json();
+        } catch (e) {
+            document.getElementById('assignUserList').innerHTML =
+                '<div class="text-danger small p-3">Failed to load data.</div>';
+            return;
+        }
+
+        const nonAdmins = _allUsers.filter(u => u.role !== 'admin');
+        const container = document.getElementById('assignUserList');
+
+        if (!nonAdmins.length) {
+            container.innerHTML = '<div class="text-muted small p-3">No non-admin users yet.</div>';
+            return;
+        }
+
+        container.innerHTML = nonAdmins.map(u => `
+            <div class="assign-user-row px-3 py-2 d-flex align-items-center gap-2"
+                 id="userrow-${u.id}"
+                 onclick="selectUser(${u.id})"
+                 style="cursor:pointer; border-bottom:1px solid #f2eeee; transition:background .15s;">
+                <div style="width:30px;height:30px;border-radius:50%;background:#e6dfe0;
+                            display:flex;align-items:center;justify-content:center;
+                            font-weight:700;font-size:.8rem;flex-shrink:0;">
+                    ${esc(u.username[0].toUpperCase())}
+                </div>
+                <div>
+                    <div style="font-weight:600;font-size:.875rem;">${esc(u.username)}</div>
+                    <div style="font-size:.75rem;color:#a89b9d;">${ROLE_BADGE[u.role] || u.role}</div>
+                </div>
+            </div>`).join('');
+    }
+
+    async function selectUser(userId) {
+        _selectedUserId = userId;
+
+        document.querySelectorAll('.assign-user-row').forEach(el => {
+            el.style.background = el.id === 'userrow-' + userId ? '#F8E8EB' : '';
+        });
+
+        const user = _allUsers.find(u => u.id === userId);
+        document.getElementById('assignPanelTitle').textContent =
+            `BI Agents for: ${user ? user.username : userId}`;
+        document.getElementById('saveAssignBtn').classList.remove('d-none');
+
+        const allAssign = await fetch('/api/admin/agent-assignments').then(r => r.json());
+        _currentAssigned = allAssign
+            .filter(a => a.user_id === userId)
+            .map(a => a.agent_name);
+
+        renderAgentCheckboxes();
+    }
+
+    function renderAgentCheckboxes() {
+        const container = document.getElementById('assignAgentList');
+        if (!_allAgents.length) {
+            container.innerHTML = '<div class="text-muted small">No BI agents found. Create agents first.</div>';
+            return;
+        }
+        container.innerHTML = _allAgents.map(agent => {
+            const name    = agent.name || agent.agent_name || '';
+            const checked = _currentAssigned.includes(name) ? 'checked' : '';
+            return `
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="form-check mb-0 flex-grow-1">
+                    <input class="form-check-input" type="checkbox" value="${esc(name)}"
+                           id="chk-${esc(name)}" ${checked}>
+                    <label class="form-check-label" for="chk-${esc(name)}">
+                        <strong>${esc(name)}</strong>
+                        ${agent.description ? `<span class="text-muted small ms-1">— ${esc(agent.description)}</span>` : ''}
+                    </label>
+                </div>
+                <button class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:.72rem;"
+                        title="Configure guardrails for this user+agent"
+                        onclick='openBiGuardrailModal(${JSON.stringify(name)})'>
+                    <i class="fas fa-shield-alt me-1"></i>Guardrails
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    async function saveAssignments() {
+        if (!_selectedUserId) return;
+        const checkboxes = document.querySelectorAll('#assignAgentList .form-check-input');
+        const agentNames = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+
+        const btn = document.getElementById('saveAssignBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const res = await fetch(`/api/admin/agent-assignments/${_selectedUserId}`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ agent_names: agentNames }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                _currentAssigned = agentNames;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Saved!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+                    btn.disabled  = false;
+                }, 1500);
+            } else {
+                alert(data.message || 'Failed to save.');
+                btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+                btn.disabled  = false;
+            }
+        } catch (e) {
+            alert('Network error.');
+            btn.innerHTML = '<i class="fas fa-save me-1"></i>Save';
+            btn.disabled  = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPanel);
+
+    // ── BI Guardrail Modal ────────────────────────────────────────────────
+    let _biGrailAgent = '';
+
+    async function openBiGuardrailModal(agentName) {
+        if (!_selectedUserId) { alert('Select a user first'); return; }
+        _biGrailAgent = agentName;
+        document.getElementById('biGrailTitle').textContent = `Guardrails — ${agentName}`;
+        document.getElementById('biGrailUser').textContent  = _selectedUserId;
+        document.getElementById('biGrailAgent').textContent = agentName;
+        document.getElementById('biGrailCustom').value      = '';
+        document.getElementById('biGrailFilters').innerHTML = '';
+
+        try {
+            const res  = await fetch(`/api/agenthub/admin/guardrails?user_id=${_selectedUserId}&agent_id=${encodeURIComponent(agentName)}&agent_type=bi`);
+            const data = await res.json();
+            const g    = data.guardrail || {};
+            document.getElementById('biGrailCustom').value = g.custom_instruction || '';
+            (g.filter_rules || []).forEach(r => addBiFilterRow(r.column, r.operator, r.value));
+        } catch { /* fresh */ }
+
+        new bootstrap.Modal(document.getElementById('biGuardrailModal')).show();
+    }
+
+    function addBiFilterRow(col = '', op = '=', val = '') {
+        const div = document.createElement('div');
+        div.className = 'd-flex gap-2 mb-2 align-items-center bi-filter-row';
+        div.innerHTML = `
+            <input type="text" class="form-control form-control-sm bi-col" placeholder="Column" value="${esc(col)}" style="flex:2" autocomplete="off">
+            <select class="form-select form-select-sm bi-op" style="flex:1">
+                ${['=','!=','LIKE','NOT LIKE','IN','NOT IN','>','<'].map(o =>
+                    `<option value="${o}"${o===op?' selected':''}>${o}</option>`
+                ).join('')}
+            </select>
+            <input type="text" class="form-control form-control-sm bi-val" placeholder="Value" value="${esc(val)}" style="flex:2" autocomplete="off">
+            <button class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>`;
+        document.getElementById('biGrailFilters').appendChild(div);
+    }
+
+    async function saveBiGuardrail() {
+        const rows = [...document.querySelectorAll('.bi-filter-row')].map(r => ({
+            column:   r.querySelector('.bi-col').value.trim(),
+            operator: r.querySelector('.bi-op').value,
+            value:    r.querySelector('.bi-val').value.trim(),
+        })).filter(r => r.column);
+
+        const res = await fetch('/api/agenthub/admin/guardrails', {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                user_id:            _selectedUserId,
+                agent_id:           _biGrailAgent,
+                agent_type:         'bi',
+                filter_rules:       rows,
+                restrict_tables:    null,
+                custom_instruction: document.getElementById('biGrailCustom').value.trim(),
+            }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('biGuardrailModal')).hide();
+            alert('Guardrail saved.');
+        } else {
+            alert('Failed: ' + (data.message || ''));
+        }
+    }
+
+    async function clearBiGuardrail() {
+        if (!confirm('Remove all guardrails for this user-agent?')) return;
+        await fetch('/api/agenthub/admin/guardrails', {
+            method: 'DELETE', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ user_id: _selectedUserId, agent_id: _biGrailAgent, agent_type: 'bi' }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById('biGuardrailModal')).hide();
+        alert('Guardrail removed.');
+    }
+</script>
+
+<!-- BI Guardrail Modal -->
+<div class="modal fade" id="biGuardrailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-shield-alt me-2"></i><span id="biGrailTitle">BI Guardrails</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px 14px;font-size:.8rem;color:#713f12;margin-bottom:14px;">
+          <i class="fas fa-info-circle me-1"></i>
+          User <strong><span id="biGrailUser"></span></strong> chatting with BI agent
+          <strong><span id="biGrailAgent"></span></strong> will have these filters applied
+          to every SQL query the agent generates.
+        </div>
+
+        <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;color:#6e6265;margin-bottom:8px;">
+          <i class="fas fa-filter me-1"></i>Data Filter Rules
+        </div>
+        <p style="font-size:.8rem;color:#6e6265;margin-bottom:8px;">
+          The agent will apply <code>WHERE column operator 'value'</code> to every query.
+        </p>
+        <div id="biGrailFilters"></div>
+        <button class="btn btn-sm btn-outline-secondary mt-1" onclick="addBiFilterRow()">
+          <i class="fas fa-plus me-1"></i>Add Filter
+        </button>
+
+        <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;color:#6e6265;margin:14px 0 8px;">
+          <i class="fas fa-comment-dots me-1"></i>Custom Instruction
+        </div>
+        <textarea id="biGrailCustom" class="form-control form-control-sm" rows="3"
+          placeholder="e.g. Only show data for the AAI project. Refuse requests for other projects."></textarea>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button class="btn btn-outline-danger btn-sm" onclick="clearBiGuardrail()">
+          <i class="fas fa-trash me-1"></i>Remove All Guardrails
+        </button>
+        <div>
+          <button class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-warning btn-sm" onclick="saveBiGuardrail()">
+            <i class="fas fa-save me-1"></i>Save Guardrails
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+{% block title %}Client Management — Nexus{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-building me-2"></i>Client Management</h2>
+        <p class="text-muted mb-0">Edit client profiles stored in clients.json</p>
+    </div>
+    <button class="btn btn-primary" onclick="openClientModal(null)">
+        <i class="fas fa-plus me-2"></i>New Client
+    </button>
+</div>
+
+<!-- Search -->
+<div class="mb-3">
+    <input type="text" id="clientSearch" class="form-control" placeholder="Search clients…"
+           autocomplete="off" oninput="renderClients()">
+</div>
+
+<!-- Client cards -->
+<div id="clientList" class="row g-3"></div>
+
+<!-- ── MODAL ── -->
+<div class="modal fade" id="clientModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clientModalTitle">Client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="clientForm" novalidate>
+                    <div class="mb-3" id="idField">
+                        <label class="form-label fw-semibold">Client ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="f-id" autocomplete="off"
+                               placeholder="e.g. aai (unique key, cannot be changed later)">
+                        <div class="form-text">Lowercase identifier. Cannot be changed after creation.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Display Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="f-name" placeholder="Ariela & Associates" autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Website URL</label>
+                        <input type="url" class="form-control" id="f-url" placeholder="https://example.com" autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Industry</label>
+                        <input type="text" class="form-control" id="f-industry" placeholder="Apparel / Fashion Retail" autocomplete="off">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Competitors</label>
+                        <div id="f-competitors" class="tag-container mb-1"></div>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="f-competitors-input" class="form-control" autocomplete="off"
+                                   placeholder="Type and press Enter or comma to add">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="addTag('competitors')">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Our Services for This Client</label>
+                        <div id="f-our_services_for_client" class="tag-container mb-1"></div>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="f-our_services_for_client-input" class="form-control" autocomplete="off"
+                                   placeholder="Type and press Enter or comma to add">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="addTag('our_services_for_client')">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">All Our Services (full catalogue)</label>
+                        <div id="f-all_our_services" class="tag-container mb-1"></div>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="f-all_our_services-input" class="form-control" autocomplete="off"
+                                   placeholder="Type and press Enter or comma to add">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="addTag('all_our_services')">Add</button>
+                        </div>
+                    </div>
+
+                    <!-- ── Email Intelligence DB ─────────────────────────── -->
+                    <hr class="my-3">
+                    <h6 class="fw-semibold mb-1"><i class="fas fa-database me-2 text-primary"></i>Email Intelligence Database</h6>
+                    <p class="text-muted small mb-3">Database used to fetch email context when generating presentations for this client.</p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Connection Mode</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="emailDbMode" id="emailDbModeNone" value="none" checked onchange="onEmailDbModeChange()">
+                                <label class="form-check-label" for="emailDbModeNone">Use default</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="emailDbMode" id="emailDbModeConn" value="connection" onchange="onEmailDbModeChange()">
+                                <label class="form-check-label" for="emailDbModeConn">Existing connection</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="emailDbMode" id="emailDbModeCustom" value="custom" onchange="onEmailDbModeChange()">
+                                <label class="form-check-label" for="emailDbModeCustom">Custom credentials</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Existing connection picker -->
+                    <div id="emailDbConnSection" class="mb-3 d-none">
+                        <label class="form-label fw-semibold">Select Connection</label>
+                        <select class="form-select" id="f-email-connection-name">
+                            <option value="">— select a saved connection —</option>
+                        </select>
+                    </div>
+
+                    <!-- Custom credential fields -->
+                    <div id="emailDbCustomSection" class="d-none">
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="form-label fw-semibold">Server</label>
+                                <input type="text" class="form-control form-control-sm" id="f-email-server" placeholder="192.168.51.13" autocomplete="off">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label fw-semibold">Port</label>
+                                <input type="text" class="form-control form-control-sm" id="f-email-port" placeholder="1433" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Database</label>
+                            <input type="text" class="form-control form-control-sm" id="f-email-database" placeholder="Database name" autocomplete="off">
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">Username</label>
+                                <input type="text" class="form-control form-control-sm" id="f-email-username" placeholder="sa" autocomplete="off">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-semibold">Password</label>
+                                <input type="password" class="form-control form-control-sm" id="f-email-password" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Driver</label>
+                            <input type="text" class="form-control form-control-sm" id="f-email-driver" placeholder="ODBC Driver 17 for SQL Server" autocomplete="off">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-danger me-auto d-none" id="deleteBtn" onclick="deleteClient()">
+                    <i class="fas fa-trash me-1"></i>Delete Client
+                </button>
+                <button class="btn btn-primary" onclick="saveClient()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.tag-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+.tag-container:empty::before {
+    content: 'None added yet';
+    color: #adb5bd;
+    font-size: .85rem;
+    line-height: 1.8;
+}
+.tag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(162, 46, 87, .13);
+    color: var(--accent, #A22E57);
+    border: 1px solid rgba(162, 46, 87, .33);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: .82rem;
+    font-weight: 500;
+}
+.tag-pill .tag-remove {
+    cursor: pointer;
+    font-size: .75rem;
+    opacity: .6;
+    margin-left: 2px;
+}
+.tag-pill .tag-remove:hover { opacity: 1; color: #dc3545; }
+.client-card { transition: box-shadow .15s; }
+.client-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.12); }
+</style>
+
+<script>
+// Defer until DOM + Bootstrap JS are both ready
+document.addEventListener('DOMContentLoaded', function () {
+
+let _clients = [];
+let _connections = [];
+let _editingId = null;
+let _modal = null;
+
+const _tags = {
+    competitors: [],
+    our_services_for_client: [],
+    all_our_services: [],
+};
+
+function getModal() {
+    if (!_modal) _modal = new bootstrap.Modal(document.getElementById('clientModal'));
+    return _modal;
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+loadClients();
+loadConnections();
+
+async function loadConnections() {
+    try {
+        const res = await fetch('/api/connections');
+        const data = await res.json();
+        _connections = Array.isArray(data) ? data : (data.connections || []);
+        const sel = document.getElementById('f-email-connection-name');
+        sel.innerHTML = '<option value="">— select a saved connection —</option>' +
+            _connections.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${esc(c.type || '')})</option>`).join('');
+    } catch (_) { /* non-fatal */ }
+}
+
+window.onEmailDbModeChange = function() {
+    const mode = document.querySelector('input[name="emailDbMode"]:checked')?.value || 'none';
+    document.getElementById('emailDbConnSection').classList.toggle('d-none', mode !== 'connection');
+    document.getElementById('emailDbCustomSection').classList.toggle('d-none', mode !== 'custom');
+};
+
+async function loadClients() {
+    try {
+        const res = await fetch('/api/admin/clients');
+        _clients = await res.json();
+        renderClients();
+    } catch (e) {
+        document.getElementById('clientList').innerHTML =
+            '<div class="col"><div class="alert alert-danger">Failed to load clients: ' + e.message + '</div></div>';
+    }
+}
+
+function renderClients() {
+    const q = (document.getElementById('clientSearch').value || '').toLowerCase();
+    const filtered = _clients.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.id || '').toLowerCase().includes(q) ||
+        (c.industry || '').toLowerCase().includes(q)
+    );
+
+    const container = document.getElementById('clientList');
+    if (!filtered.length) {
+        container.innerHTML = '<div class="col"><p class="text-muted">No clients found.</p></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map(c => `
+        <div class="col-md-6 col-xl-4">
+            <div class="card client-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h6 class="card-title mb-0">${esc(c.name)}</h6>
+                            <small class="text-muted font-monospace">${esc(c.id)}</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="openClientModal('${esc(c.id)}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                    </div>
+                    ${c.industry ? `<div class="badge bg-secondary mb-2">${esc(c.industry)}</div>` : ''}
+                    ${c.url ? `<div class="mb-1"><a href="${esc(c.url)}" target="_blank" class="small text-truncate d-block">${esc(c.url)}</a></div>` : ''}
+                    <div class="small mt-2">
+                        <span class="fw-semibold">Services:</span>
+                        ${(c.our_services_for_client || []).length
+                            ? (c.our_services_for_client || []).slice(0,3).map(s => `<span class="badge bg-light text-dark border me-1">${esc(s)}</span>`).join('') +
+                              ((c.our_services_for_client || []).length > 3 ? `<span class="text-muted">+${(c.our_services_for_client||[]).length-3} more</span>` : '')
+                            : '<span class="text-muted">None</span>'}
+                    </div>
+                    <div class="small mt-1">
+                        <span class="fw-semibold">Competitors:</span>
+                        ${(c.competitors || []).length
+                            ? (c.competitors || []).slice(0,2).map(s => `<span class="badge bg-light text-dark border me-1">${esc(s)}</span>`).join('') +
+                              ((c.competitors || []).length > 2 ? `<span class="text-muted">+${(c.competitors||[]).length-2} more</span>` : '')
+                            : '<span class="text-muted">None</span>'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+window.openClientModal = function(clientId) {
+    _editingId = clientId;
+    const isNew = clientId === null;
+    document.getElementById('clientModalTitle').textContent = isNew ? 'New Client' : 'Edit Client';
+    document.getElementById('idField').style.display = isNew ? '' : 'none';
+    document.getElementById('deleteBtn').classList.toggle('d-none', isNew);
+
+    document.getElementById('f-id').value = '';
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-url').value = '';
+    document.getElementById('f-industry').value = '';
+    Object.keys(_tags).forEach(k => { _tags[k] = []; renderTags(k); });
+
+    // Reset email db section
+    document.getElementById('emailDbModeNone').checked = true;
+    onEmailDbModeChange();
+    document.getElementById('f-email-connection-name').value = '';
+    document.getElementById('f-email-server').value = '';
+    document.getElementById('f-email-port').value = '';
+    document.getElementById('f-email-database').value = '';
+    document.getElementById('f-email-username').value = '';
+    document.getElementById('f-email-password').value = '';
+    document.getElementById('f-email-driver').value = '';
+
+    if (!isNew) {
+        const c = _clients.find(x => x.id === clientId);
+        if (!c) return;
+        document.getElementById('f-name').value = c.name || '';
+        document.getElementById('f-url').value = c.url || '';
+        document.getElementById('f-industry').value = c.industry || '';
+        Object.keys(_tags).forEach(k => { _tags[k] = [...(c[k] || [])]; renderTags(k); });
+
+        // Populate email db config
+        const cfg = c.email_db_config || {};
+        const mode = cfg.mode || 'none';
+        const modeRadio = document.getElementById(
+            mode === 'connection' ? 'emailDbModeConn' :
+            mode === 'custom'     ? 'emailDbModeCustom' : 'emailDbModeNone'
+        );
+        if (modeRadio) modeRadio.checked = true;
+        onEmailDbModeChange();
+        if (mode === 'connection') {
+            document.getElementById('f-email-connection-name').value = cfg.connection_name || '';
+        } else if (mode === 'custom') {
+            document.getElementById('f-email-server').value   = cfg.server   || '';
+            document.getElementById('f-email-port').value     = cfg.port     || '';
+            document.getElementById('f-email-database').value = cfg.database || '';
+            document.getElementById('f-email-username').value = cfg.username || '';
+            document.getElementById('f-email-password').value = cfg.password || '';
+            document.getElementById('f-email-driver').value   = cfg.driver   || '';
+        }
+    }
+
+    getModal().show();
+};
+
+window.saveClient = async function() {
+    const isNew = _editingId === null;
+    const emailMode = document.querySelector('input[name="emailDbMode"]:checked')?.value || 'none';
+    let emailDbConfig = {};
+    if (emailMode === 'connection') {
+        emailDbConfig = {
+            mode: 'connection',
+            connection_name: document.getElementById('f-email-connection-name').value.trim(),
+        };
+    } else if (emailMode === 'custom') {
+        emailDbConfig = {
+            mode: 'custom',
+            server:   document.getElementById('f-email-server').value.trim(),
+            port:     document.getElementById('f-email-port').value.trim(),
+            database: document.getElementById('f-email-database').value.trim(),
+            username: document.getElementById('f-email-username').value.trim(),
+            password: document.getElementById('f-email-password').value.trim(),
+            driver:   document.getElementById('f-email-driver').value.trim(),
+        };
+    }
+    const payload = {
+        name: document.getElementById('f-name').value.trim(),
+        url: document.getElementById('f-url').value.trim(),
+        industry: document.getElementById('f-industry').value.trim(),
+        competitors: [..._tags.competitors],
+        our_services_for_client: [..._tags.our_services_for_client],
+        all_our_services: [..._tags.all_our_services],
+        email_db_config: emailDbConfig,
+    };
+
+    if (isNew) {
+        const id = document.getElementById('f-id').value.trim();
+        if (!id) { alert('Client ID is required.'); return; }
+        if (!payload.name) { alert('Display Name is required.'); return; }
+        payload.id = id;
+    } else {
+        if (!payload.name) { alert('Display Name is required.'); return; }
+    }
+
+    const url = isNew ? '/api/admin/clients' : `/api/admin/clients/${_editingId}`;
+    const method = isNew ? 'POST' : 'PUT';
+
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.status !== 'success') { alert(data.message || 'Save failed.'); return; }
+        getModal().hide();
+        await loadClients();
+    } catch (e) {
+        alert('Request failed: ' + e.message);
+    }
+};
+
+window.deleteClient = async function() {
+    if (!_editingId) return;
+    const c = _clients.find(x => x.id === _editingId);
+    if (!confirm(`Delete client "${c ? c.name : _editingId}"? This cannot be undone.`)) return;
+
+    try {
+        const res = await fetch(`/api/admin/clients/${_editingId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status !== 'success') { alert(data.message || 'Delete failed.'); return; }
+        getModal().hide();
+        await loadClients();
+    } catch (e) {
+        alert('Request failed: ' + e.message);
+    }
+};
+
+window.addTag = function(field) {
+    const inp = document.getElementById(`f-${field}-input`);
+    const raw = inp.value.trim();
+    if (!raw) return;
+    raw.split(',').forEach(v => {
+        v = v.trim();
+        if (v && !_tags[field].includes(v)) _tags[field].push(v);
+    });
+    inp.value = '';
+    renderTags(field);
+};
+
+window.removeTag = function(field, idx) {
+    _tags[field].splice(idx, 1);
+    renderTags(field);
+};
+
+function renderTags(field) {
+    const container = document.getElementById(`f-${field}`);
+    container.innerHTML = _tags[field].map((v, i) =>
+        `<span class="tag-pill">${esc(v)}<span class="tag-remove" onclick="removeTag('${field}',${i})">&#10005;</span></span>`
+    ).join('');
+}
+
+['competitors','our_services_for_client','all_our_services'].forEach(field => {
+    document.getElementById(`f-${field}-input`).addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(field); }
+    });
+});
+
+function esc(str) {
+    return String(str || '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+}); // end DOMContentLoaded
+</script>
+{% endblock %}
