@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Database Connections Page -->
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-plug me-2"></i>Database Connections</h2>
+        <p class="text-muted mb-0">Manage your database connections</p>
+    </div>
+    <button class="btn btn-primary" onclick="showCreateConnectionModal()">
+        <i class="fas fa-plus me-2"></i>Add Connection
+    </button>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Connection Name</th>
+                        <th>Database Type</th>
+                        <th>Server</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="connections-table-body">
+                    {% if connections %}
+                        {% for connection in connections %}
+                        <tr>
+                            <td><strong>{{ connection.name }}</strong></td>
+                            <td>{{ connection.type|title }}</td>
+                            <td>{{ connection.server }}:{{ connection.port }}</td>
+                            <td>
+                                <span class="status-badge status-{{ 'active' if connection.status == 'connected' else 'inactive' }}">
+                                    {{ connection.status|title }}
+                                </span>
+                            </td>
+                            <td class="table-actions">
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="testExistingConnection('{{ connection.name }}')">
+                                    <i class="fas fa-vial"></i> Test
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary me-1" onclick="editConnection('{{ connection.name }}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteConnection('{{ connection.name }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                <i class="fas fa-database fa-2x mb-3"></i><br>
+                                No database connections found.<br>
+                                <small>Click "Add Connection" to create your first connection.</small>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Connection Info</h5>
+                <p class="card-text">Create and manage database connections to enable your agents to query data directly from your databases.</p>
+                <div class="mt-3">
+                    <h6>Supported Databases:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>PostgreSQL</li>
+                        <li><i class="fas fa-check text-success me-2"></i>MySQL</li>
+                        <li><i class="fas fa-check text-success me-2"></i>SQL Server</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Oracle</li>
+                        <li><i class="fas fa-check text-success me-2"></i>SQLite</li>
+                        <li><i class="fas fa-check text-success me-2"></i>MongoDB</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Include modals -->
+{% include 'components/modals.html' %}
+
+{% endblock %}

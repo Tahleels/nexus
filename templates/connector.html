@@ -1,0 +1,1348 @@
+{% extends "base.html" %}
+{% block title %}Connector{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────── */
+.connector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+@media (max-width: 900px) { .connector-grid { grid-template-columns: 1fr; } }
+
+.connector-card {
+    background: var(--surface, #251e21);
+    border: 1px solid var(--border-color, #3c3235);
+    border-radius: 14px;
+    padding: 1.5rem;
+}
+.connector-card h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff !important;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.connector-card .card-desc {
+    color: rgba(255,255,255,.75) !important;
+}
+
+/* ── Proxy banner ─────────────────────────────────────────── */
+#proxyBanner {
+    background: linear-gradient(90deg, #A22E57 0%, #7c3aed 100%);
+    border-radius: 10px;
+    color: #fff;
+    padding: .75rem 1.25rem;
+    font-size: .9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+#proxyBanner.hidden { display: none; }
+
+/* ── User list (proxy targets) ──────────────────────────── */
+.proxy-target-list {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 280px;
+    overflow-y: auto;
+}
+.proxy-target-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .6rem .9rem;
+    border-radius: 8px;
+    background: var(--bg, #150f12);
+    border: 1px solid var(--border-color, #3c3235);
+    cursor: pointer;
+    transition: border-color .15s;
+}
+.proxy-target-item:hover { border-color: #A22E57; }
+.proxy-target-item.active {
+    border-color: #A22E57;
+    background: rgba(162,46,87,.12);
+}
+.proxy-avatar {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700; color: #fff;
+    background: #574c4f;
+    flex-shrink: 0;
+}
+
+/* ── Watch-dir list ─────────────────────────────────────── */
+.watch-dir-list {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.watch-dir-item {
+    background: var(--bg, #150f12);
+    border: 1px solid var(--border-color, #3c3235);
+    border-radius: 8px;
+    padding: .7rem 1rem;
+}
+.watch-dir-item .dir-path {
+    font-family: monospace;
+    font-size: .8rem;
+    color: #a89b9d;
+    word-break: break-all;
+}
+.watch-dir-item .dir-label {
+    font-size: .9rem;
+    font-weight: 600;
+    color: var(--text-primary, #f2eeee);
+}
+.watch-dir-item .dir-meta {
+    font-size: .75rem;
+    color: #6e6265;
+}
+
+/* ── Add-dir form ────────────────────────────────────────── */
+#addDirForm { display: none; }
+#addDirForm.show { display: block; }
+
+.scope-badge {
+    display: inline-block;
+    padding: .15rem .5rem;
+    border-radius: 4px;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+.scope-badge.user       { background: #6B2038; color: #E8B9C4; }
+.scope-badge.global     { background: #065f46; color: #a7f3d0; }
+.scope-badge.department { background: #6b21a8; color: #e9d5ff; }
+.scope-badge.project    { background: #92400e; color: #fde68a; }
+.enabled-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+}
+.enabled-dot.on  { background: #22c55e; }
+.enabled-dot.off { background: #ef4444; }
+
+/* ── Admin proxy assignments modal ──────────────────────── */
+.assign-row {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--border-color, #3c3235);
+}
+.assign-row:last-child { border-bottom: none; }
+
+/* ── Connector monitor ───────────────────────────────────── */
+#connectorMonitor .log-row td { font-size: .8rem; vertical-align: middle; }
+.log-status-badge {
+    display: inline-block;
+    padding: .15rem .55rem;
+    border-radius: 4px;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.log-status-badge.success { background: #064e3b; color: #6ee7b7; }
+.log-status-badge.error   { background: #450a0a; color: #fca5a5; }
+.log-status-badge.skipped { background: #4A1C2E; color: #D189A0; }
+.log-type-badge {
+    display: inline-block;
+    padding: .1rem .45rem;
+    border-radius: 4px;
+    font-size: .68rem;
+    font-weight: 600;
+}
+.log-type-badge.filesystem  { background: #422006; color: #fcd34d; }
+.log-type-badge.sharepoint  { background: #4A1C2E; color: #D189A0; }
+
+/* ── Key metrics tag input ──────────────────────────────── */
+.metrics-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    padding: .35rem .5rem;
+    border: 1px solid var(--border-color, #3c3235);
+    border-radius: 6px;
+    background: var(--bg, #150f12);
+    cursor: text;
+    min-height: 36px;
+    align-items: center;
+}
+.metrics-input-wrap:focus-within { border-color: #A22E57; }
+.metric-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    background: #6B2038;
+    color: #E8B9C4;
+    border-radius: 4px;
+    padding: .1rem .45rem;
+    font-size: .75rem;
+    font-weight: 600;
+}
+.metric-tag button {
+    background: none;
+    border: none;
+    color: #D189A0;
+    cursor: pointer;
+    padding: 0;
+    font-size: .7rem;
+    line-height: 1;
+}
+.metric-tag button:hover { color: #fff; }
+.metrics-bare-input {
+    border: none;
+    background: transparent;
+    color: var(--text-primary, #f2eeee);
+    outline: none;
+    font-size: .82rem;
+    min-width: 120px;
+    flex: 1;
+}
+.metric-badge {
+    display: inline-block;
+    background: #4A1C2E;
+    color: #D189A0;
+    border-radius: 4px;
+    padding: .1rem .45rem;
+    font-size: .7rem;
+    font-weight: 600;
+}
+
+/* ── Traces table ────────────────────────────────────────── */
+#tracesTable td { font-size: .8rem; }
+.confidence-bar {
+    height: 6px; border-radius: 3px;
+    background: #251e21;
+    overflow: hidden;
+    width: 80px;
+}
+.confidence-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #22c55e 100%);
+    transition: width .3s;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+    <h4 class="mb-0">
+        <i class="fas fa-plug me-2" style="color:#A22E57;"></i>Connector
+    </h4>
+    <p class="text-muted mb-0" style="font-size:.85rem;">
+        Directory auto-ingest, Dev Proxy mode, and RAG observability
+    </p>
+</div>
+
+<!-- ── Active Proxy Banner ─────────────────────────────────────────── -->
+<div id="proxyBanner" class="mb-4 {% if not proxy_user %}hidden{% endif %}">
+    <span>
+        <i class="fas fa-user-secret me-2"></i>
+        Connected as: <strong id="proxyBannerName">{{ proxy_user.username if proxy_user else '' }}</strong>
+        &mdash; resources you create will be assigned to this user
+    </span>
+    <button class="btn btn-sm btn-light" onclick="disconnectProxy()">
+        <i class="fas fa-times me-1"></i>Disconnect
+    </button>
+</div>
+
+<div class="connector-grid mb-4">
+
+    <!-- ══ Dev Proxy ═══════════════════════════════════════════════ -->
+    <div class="connector-card">
+        <h5>
+            <i class="fas fa-user-secret" style="color:#a78bfa;"></i>
+            Dev Mode — Connect as User
+        </h5>
+        <p class="card-desc mb-3" style="font-size:.82rem;">
+            Connect as another user to create agents, upload documents, and run
+            workflows on their behalf. Their guardrails apply for all resources
+            created in this mode.
+        </p>
+        <div id="proxyTargetList" class="proxy-target-list mb-3">
+            <div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div>
+        </div>
+        {% if current_user.role == 'admin' %}
+        <hr style="border-color:var(--border-color,#3c3235);">
+        <button class="btn btn-sm btn-outline-secondary w-100" onclick="openProxyAssignModal()">
+            <i class="fas fa-cog me-1"></i>Manage Dev Proxy Assignments
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- ══ Directory Connector ═════════════════════════════════════ -->
+    <div class="connector-card">
+        <h5>
+            <i class="fas fa-folder-open" style="color:#f59e0b;"></i>
+            Directory Connector
+        </h5>
+        <p class="card-desc mb-3" style="font-size:.82rem;">
+            Connect a folder path. Any document dropped there is automatically
+            processed and indexed. Processed files are moved to
+            <code>archive/</code> inside that folder.
+        </p>
+
+        <!-- Add new dir -->
+        <button class="btn btn-sm btn-primary mb-3" onclick="toggleAddDir()">
+            <i class="fas fa-plus me-1"></i>Add Directory
+        </button>
+
+        <div id="addDirForm" class="mb-3 p-3 rounded" style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);">
+            <div class="mb-2">
+                <label class="form-label" style="font-size:.8rem;">Folder Path</label>
+                <input type="text" id="addDirPath" class="form-control form-control-sm" autocomplete="off"
+                       placeholder="C:\Users\...\Documents\drop-here">
+            </div>
+            <div class="mb-2">
+                <label class="form-label" style="font-size:.8rem;">Label</label>
+                <input type="text" id="addDirLabel" class="form-control form-control-sm" autocomplete="off"
+                       placeholder="Optional friendly name">
+            </div>
+            <div class="mb-2">
+                <label class="form-label" style="font-size:.8rem;">Document Access Scope</label>
+                <select id="addDirScope" class="form-select form-select-sm" onchange="updateDirScopeFields()">
+                    <option value="global">Global — everyone</option>
+                    <option value="department">Department</option>
+                    <option value="project">Project</option>
+                    <option value="user">Specific User</option>
+                </select>
+            </div>
+            <div class="mb-2" id="addDirScopeIdWrap" style="display:none;">
+                <label class="form-label" style="font-size:.8rem;" id="addDirScopeIdLabel">Department</label>
+                <select id="addDirScopeId" class="form-select form-select-sm">
+                    <option value="">Select…</option>
+                </select>
+            </div>
+            <div class="mb-3" id="addDirUserWrap" style="display:none;">
+                <label class="form-label" style="font-size:.8rem;">Users <span class="text-muted" style="font-size:.72rem;">(only these users can retrieve ingested docs)</span></label>
+                <input type="text" id="addDirUserSearch" class="form-control form-control-sm mb-1"
+                       placeholder="Search users…" autocomplete="off"
+                       oninput="connFilterUsers('dir')">
+                <div id="addDirUserList" class="p-2 rounded"
+                     style="max-height:140px;overflow-y:auto;background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);font-size:.82rem;">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" style="font-size:.8rem;">
+                    Key Metrics
+                    <span class="text-muted" style="font-size:.72rem;">— optional fields to auto-extract from every document (e.g. <em>name, education, experience</em>)</span>
+                </label>
+                <div class="metrics-input-wrap" id="dirMetricsWrap" onclick="document.getElementById('dirMetricInput').focus()">
+                    <input type="text" id="dirMetricInput" class="metrics-bare-input" autocomplete="off"
+                           placeholder="Type metric name then press Enter or comma…"
+                           onkeydown="handleMetricKey(event,'dirMetricsWrap','dirMetricInput')">
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-success flex-fill" onclick="saveWatchDir()">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="toggleAddDir()">Cancel</button>
+            </div>
+        </div>
+
+        <!-- List of watch dirs -->
+        <div id="watchDirList" class="watch-dir-list">
+            <div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ SharePoint Connector ════════════════════════════════════════ -->
+<div class="connector-card mb-4">
+    <h5>
+        <i class="fab fa-microsoft" style="color:#0078d4;"></i>
+        SharePoint Connector
+    </h5>
+    <p class="card-desc mb-3" style="font-size:.82rem;">
+        Connect a SharePoint folder. Any document uploaded there is automatically
+        downloaded, processed, and indexed. Processed files are moved to
+        <code>archive/</code> inside that SharePoint folder.
+    </p>
+
+    <button class="btn btn-sm btn-primary mb-3" onclick="toggleAddSP()">
+        <i class="fas fa-plus me-1"></i>Add SharePoint Folder
+    </button>
+
+    <div id="addSPForm" style="display:none;" class="mb-3 p-3 rounded"
+         style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);">
+        <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">Site URL</label>
+            <input type="text" id="spSiteUrl" class="form-control form-control-sm" autocomplete="off"
+                   placeholder="https://yourtenant.sharepoint.com/sites/SiteName"
+                   value="https://yourcompany.sharepoint.com/sites/YourSite">
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">
+                Folder Path
+                <span class="text-muted" style="font-size:.75rem;">(relative to document library root, e.g. <code>Test</code>)</span>
+            </label>
+            <input type="text" id="spFolderPath" class="form-control form-control-sm" autocomplete="off"
+                   placeholder="Test" value="Test">
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">Label</label>
+            <input type="text" id="spLabel" class="form-control form-control-sm" autocomplete="off"
+                   placeholder="Optional friendly name">
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">Document Access Scope</label>
+            <select id="spScope" class="form-select form-select-sm" onchange="updateSPScopeFields()">
+                <option value="global">Global — everyone</option>
+                <option value="department">Department</option>
+                <option value="project">Project</option>
+                <option value="user">Specific User</option>
+            </select>
+        </div>
+        <div class="mb-2" id="spScopeIdWrap" style="display:none;">
+            <label class="form-label" style="font-size:.8rem;" id="spScopeIdLabel">Department</label>
+            <select id="spScopeId" class="form-select form-select-sm">
+                <option value="">Select…</option>
+            </select>
+        </div>
+        <div class="mb-3" id="spUserWrap" style="display:none;">
+            <label class="form-label" style="font-size:.8rem;">Users <span class="text-muted" style="font-size:.72rem;">(only these users can retrieve ingested docs)</span></label>
+            <input type="text" id="spUserSearch" class="form-control form-control-sm mb-1"
+                   placeholder="Search users…" autocomplete="off"
+                   oninput="connFilterUsers('sp')">
+            <div id="spUserList" class="p-2 rounded"
+                 style="max-height:140px;overflow-y:auto;background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);font-size:.82rem;">
+            </div>
+        </div>
+        <div class="mb-2">
+            <label class="form-label" style="font-size:.8rem;">
+                Poll Interval (seconds)
+                <span class="text-muted" style="font-size:.75rem;">— how often to check for new files</span>
+            </label>
+            <input type="number" id="spPollInterval" class="form-control form-control-sm"
+                   value="60" min="30" max="86400">
+        </div>
+        <div class="mb-3">
+            <label class="form-label" style="font-size:.8rem;">
+                Key Metrics
+                <span class="text-muted" style="font-size:.72rem;">— optional fields to auto-extract from every document (e.g. <em>name, education, experience</em>)</span>
+            </label>
+            <div class="metrics-input-wrap" id="spMetricsWrap" onclick="document.getElementById('spMetricInput').focus()">
+                <input type="text" id="spMetricInput" class="metrics-bare-input" autocomplete="off"
+                       placeholder="Type metric name then press Enter or comma…"
+                       onkeydown="handleMetricKey(event,'spMetricsWrap','spMetricInput')">
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-success flex-fill" onclick="saveSPWatch()">
+                <i class="fas fa-save me-1"></i>Save
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="toggleAddSP()">Cancel</button>
+        </div>
+    </div>
+
+    <div id="spWatchList" class="watch-dir-list">
+        <div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div>
+    </div>
+</div>
+
+<!-- ══ Connector Monitor ════════════════════════════════════════════ -->
+<div class="connector-card mb-4" id="connectorMonitor">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 class="mb-0">
+            <i class="fas fa-satellite-dish me-2" style="color:#f59e0b;"></i>
+            Connector Monitor
+        </h5>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Filters -->
+            <select id="monFilterType" class="form-select form-select-sm"
+                    style="width:150px;" onchange="loadConnectorLogs()">
+                <option value="">All types</option>
+                <option value="filesystem">Directory</option>
+                <option value="sharepoint">SharePoint</option>
+            </select>
+            <select id="monFilterStatus" class="form-select form-select-sm"
+                    style="width:130px;" onchange="loadConnectorLogs()">
+                <option value="">All statuses</option>
+                <option value="success">Success</option>
+                <option value="error">Error</option>
+            </select>
+            <select id="monFilterLimit" class="form-select form-select-sm"
+                    style="width:100px;" onchange="loadConnectorLogs()">
+                <option value="50">Last 50</option>
+                <option value="100" selected>Last 100</option>
+                <option value="200">Last 200</option>
+                <option value="500">Last 500</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadConnectorLogs()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+            <div id="monAutoRefreshWrap" class="d-flex align-items-center gap-1">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="monAutoRefresh"
+                           onchange="toggleAutoRefresh()">
+                    <label class="form-check-label" style="font-size:.78rem;color:#a89b9d;" for="monAutoRefresh">
+                        Auto&nbsp;30s
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="d-flex gap-3 mb-3" id="monStats" style="flex-wrap:wrap;">
+        <div class="p-2 rounded" style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);min-width:110px;">
+            <div style="font-size:.7rem;color:#6e6265;text-transform:uppercase;letter-spacing:.04em;">Total</div>
+            <div id="monStatTotal" style="font-size:1.3rem;font-weight:700;color:#f2eeee;">—</div>
+        </div>
+        <div class="p-2 rounded" style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);min-width:110px;">
+            <div style="font-size:.7rem;color:#6e6265;text-transform:uppercase;letter-spacing:.04em;">Success</div>
+            <div id="monStatSuccess" style="font-size:1.3rem;font-weight:700;color:#22c55e;">—</div>
+        </div>
+        <div class="p-2 rounded" style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);min-width:110px;">
+            <div style="font-size:.7rem;color:#6e6265;text-transform:uppercase;letter-spacing:.04em;">Errors</div>
+            <div id="monStatError" style="font-size:1.3rem;font-weight:700;color:#ef4444;">—</div>
+        </div>
+        <div class="p-2 rounded" style="background:var(--bg,#150f12);border:1px solid var(--border-color,#3c3235);min-width:110px;">
+            <div style="font-size:.7rem;color:#6e6265;text-transform:uppercase;letter-spacing:.04em;">Chunks</div>
+            <div id="monStatChunks" style="font-size:1.3rem;font-weight:700;color:#C74759;">—</div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm" id="monitorTable">
+            <thead>
+                <tr style="font-size:.73rem;color:#6e6265;text-transform:uppercase;letter-spacing:.04em;">
+                    <th>Time</th>
+                    <th>Type</th>
+                    <th>Connector</th>
+                    <th>File</th>
+                    <th>Status</th>
+                    <th>Chunks</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody id="monitorBody">
+                <tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══ RAG Observability ═══════════════════════════════════════════ -->
+<div class="connector-card mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+            <i class="fas fa-chart-line me-2" style="color:#22c55e;"></i>
+            Retrieval Traces
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadTraces()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm" id="tracesTable">
+            <thead>
+                <tr style="font-size:.75rem; color:#6e6265; text-transform:uppercase; letter-spacing:.04em;">
+                    <th>Time</th>
+                    <th>Query</th>
+                    <th>Method</th>
+                    <th>Results</th>
+                    <th>Confidence</th>
+                    <th>Fallback</th>
+                    <th>Latency</th>
+                </tr>
+            </thead>
+            <tbody id="tracesBody">
+                <tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══ Admin: Proxy Assignments Modal ═════════════════════════════ -->
+<div class="modal fade" id="proxyAssignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background:var(--surface,#251e21); border:1px solid var(--border-color,#3c3235);">
+            <div class="modal-header" style="border-bottom:1px solid var(--border-color,#3c3235);">
+                <h5 class="modal-title">Dev Proxy Assignments</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:.82rem;">
+                    Configure which users each dev can connect as. Admins can always proxy any user.
+                </p>
+                <div id="proxyAssignBody">
+                    <div class="text-muted text-center py-3">Loading…</div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--border-color,#3c3235);">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-primary btn-sm" onclick="saveProxyAssignments()">Save All</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── State ───────────────────────────────────────────────────────── */
+let _proxyTargets  = [];
+let _watchDirs     = [];
+let _proxyChanges  = {};     // dev_user_id → [target_user_id, ...]
+let _activeProxy   = {{ proxy_user.id if proxy_user else 'null' }};
+let _proxyUsers    = [];     // for admin assignment modal
+let _connOrg       = { depts: [], projects: [], users: [] };
+
+/* ── Key Metrics tag-input helpers ──────────────────────────────── */
+function handleMetricKey(e, wrapId, inputId) {
+    const input = document.getElementById(inputId);
+    const raw   = input.value;
+    if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab') {
+        e.preventDefault();
+        const val = raw.replace(/,/g, '').trim();
+        if (val) addMetricTag(wrapId, inputId, val);
+        input.value = '';
+    } else if (e.key === 'Backspace' && !raw) {
+        const wrap = document.getElementById(wrapId);
+        const tags = wrap.querySelectorAll('.metric-tag');
+        if (tags.length) tags[tags.length - 1].remove();
+    }
+}
+
+function addMetricTag(wrapId, inputId, value) {
+    const wrap  = document.getElementById(wrapId);
+    const input = document.getElementById(inputId);
+    // Prevent duplicates
+    const existing = Array.from(wrap.querySelectorAll('.metric-tag'))
+                          .map(t => t.dataset.value);
+    if (existing.includes(value)) return;
+    const tag = document.createElement('span');
+    tag.className   = 'metric-tag';
+    tag.dataset.value = value;
+    tag.innerHTML   = `${esc(value)}<button onclick="this.parentElement.remove()" title="Remove">×</button>`;
+    wrap.insertBefore(tag, input);
+}
+
+function getMetricTags(wrapId) {
+    const wrap = document.getElementById(wrapId);
+    return Array.from(wrap.querySelectorAll('.metric-tag')).map(t => t.dataset.value);
+}
+
+/* ── Init ────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+    loadConnectorOrgData();
+    loadProxyTargets();
+    loadWatchDirs();
+    loadSPWatches();
+    loadConnectorLogs();
+    loadTraces();
+});
+
+async function loadConnectorOrgData() {
+    const safe = url => fetch(url).then(r => r.json()).catch(() => ({}));
+    const [d, p, u] = await Promise.all([
+        safe('/api/knowledge/departments'),
+        safe('/api/knowledge/projects'),
+        safe('/api/knowledge/users'),
+    ]);
+    _connOrg.depts    = d.departments  || [];
+    _connOrg.projects = p.projects      || [];
+    _connOrg.users    = u.users         || [];
+    _populateConnectorDropdowns();
+}
+
+function _populateConnectorDropdowns() {
+    const deptOpts = _connOrg.depts.map(d =>
+        `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+    const projOpts = _connOrg.projects.map(p =>
+        `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    _connOrg._deptOpts = deptOpts;
+    _connOrg._projOpts = projOpts;
+    // Render both user checkbox lists
+    connRenderUserList('dir', '');
+    connRenderUserList('sp',  '');
+}
+
+// prefix = 'dir' or 'sp'
+function connRenderUserList(prefix, query) {
+    const listId = prefix === 'dir' ? 'addDirUserList' : 'spUserList';
+    const el = document.getElementById(listId);
+    if (!el) return;
+    const q = (query || '').toLowerCase();
+    const checked = connGetSelectedUsers(prefix);
+    const users = _connOrg.users.filter(u =>
+        !q || u.username.toLowerCase().includes(q));
+    if (!users.length) {
+        el.innerHTML = '<div style="color:#6e6265;padding:.25rem 0;">No users found</div>';
+        return;
+    }
+    el.innerHTML = users.map(u => {
+        const isChecked = checked.includes(u.id) ? 'checked' : '';
+        return `<label style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;cursor:pointer;">
+            <input type="checkbox" class="conn-user-cb-${prefix}" value="${u.id}" ${isChecked}
+                   style="accent-color:#A22E57;">
+            <span style="color:#f2eeee;">${esc(u.username)}</span>
+        </label>`;
+    }).join('');
+}
+
+function connFilterUsers(prefix) {
+    const inputId = prefix === 'dir' ? 'addDirUserSearch' : 'spUserSearch';
+    const q = document.getElementById(inputId)?.value || '';
+    connRenderUserList(prefix, q);
+}
+
+function connGetSelectedUsers(prefix) {
+    const listId = prefix === 'dir' ? 'addDirUserList' : 'spUserList';
+    const el = document.getElementById(listId);
+    if (!el) return [];
+    return Array.from(el.querySelectorAll(`.conn-user-cb-${prefix}:checked`))
+                .map(cb => parseInt(cb.value));
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DEV PROXY
+═══════════════════════════════════════════════════════════════════ */
+async function loadProxyTargets() {
+    try {
+        const r = await fetch('/api/dev/proxy/targets');
+        const d = await r.json();
+        if (!d.success) return;
+        _proxyTargets = d.targets || [];
+        _activeProxy  = d.active_proxy_id || null;
+        renderProxyTargets();
+    } catch(e) {
+        document.getElementById('proxyTargetList').innerHTML =
+            '<div class="text-danger text-center py-2">Failed to load users</div>';
+    }
+}
+
+function renderProxyTargets() {
+    const el = document.getElementById('proxyTargetList');
+    if (!_proxyTargets.length) {
+        el.innerHTML = '<div class="text-muted text-center py-3" style="font-size:.85rem;">No proxy targets assigned to you.<br>Ask an admin to configure access.</div>';
+        return;
+    }
+    el.innerHTML = _proxyTargets.map(u => {
+        const active = _activeProxy == u.id;
+        return `
+            <div class="proxy-target-item ${active ? 'active' : ''}"
+                 onclick="toggleProxy(${u.id}, '${esc(u.username)}')">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="proxy-avatar" style="background:${avatarColor(u.username)}">
+                        ${u.username.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                        <div style="font-size:.9rem; color:var(--text-primary,#f2eeee);">${esc(u.username)}</div>
+                        <div style="font-size:.75rem; color:#6e6265;">${esc(u.email||'')}</div>
+                    </div>
+                </div>
+                ${active
+                    ? '<span class="badge bg-primary" style="font-size:.7rem;">Active</span>'
+                    : '<span class="badge bg-secondary" style="font-size:.7rem;">Connect</span>'}
+            </div>`;
+    }).join('');
+}
+
+async function toggleProxy(userId, userName) {
+    if (_activeProxy == userId) {
+        await disconnectProxy();
+    } else {
+        await connectProxy(userId, userName);
+    }
+}
+
+async function connectProxy(userId, userName) {
+    const r = await fetch('/api/dev/proxy/connect', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({target_user_id: userId})
+    });
+    const d = await r.json();
+    if (d.success) {
+        _activeProxy = userId;
+        showProxyBanner(userName);
+        renderProxyTargets();
+        showToast(`Connected as ${userName}`, 'success');
+    } else {
+        showToast(d.error || 'Failed to connect', 'danger');
+    }
+}
+
+async function disconnectProxy() {
+    await fetch('/api/dev/proxy/disconnect', {method:'POST'});
+    _activeProxy = null;
+    hideProxyBanner();
+    renderProxyTargets();
+    showToast('Disconnected — back to your account', 'info');
+}
+
+function showProxyBanner(name) {
+    const b = document.getElementById('proxyBanner');
+    document.getElementById('proxyBannerName').textContent = name;
+    b.classList.remove('hidden');
+}
+function hideProxyBanner() {
+    document.getElementById('proxyBanner').classList.add('hidden');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DIRECTORY WATCHER
+═══════════════════════════════════════════════════════════════════ */
+async function loadWatchDirs() {
+    try {
+        const r = await fetch('/api/knowledge/watch-dirs');
+        const d = await r.json();
+        _watchDirs = d.watch_dirs || [];
+        renderWatchDirs();
+    } catch(e) {
+        document.getElementById('watchDirList').innerHTML =
+            '<div class="text-danger text-center py-2">Failed to load</div>';
+    }
+}
+
+function renderWatchDirs() {
+    const el = document.getElementById('watchDirList');
+    if (!_watchDirs.length) {
+        el.innerHTML = '<div class="text-muted text-center py-3" style="font-size:.85rem;">No directories connected yet.</div>';
+        return;
+    }
+    el.innerHTML = _watchDirs.map(d => `
+        <div class="watch-dir-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-fill me-2">
+                    <div class="dir-label">${esc(d.label || d.folder_path)}</div>
+                    <div class="dir-path">${esc(d.folder_path)}</div>
+                    <div class="dir-meta mt-1 d-flex gap-2 flex-wrap">
+                        <span class="scope-badge ${d.scope||'user'}">${d.scope||'user'}</span>
+                        <span><span class="enabled-dot ${d.enabled ? 'on':'off'}"></span>
+                            ${d.enabled ? 'Active':'Paused'}</span>
+                        <span>${d.files_ingested||0} files ingested</span>
+                        ${d.last_scanned ? `<span>Last scan: ${d.last_scanned.substr(0,19)}</span>` : ''}
+                    </div>
+                    ${(d.key_metrics||[]).length ? `<div class="mt-1 d-flex gap-1 flex-wrap">
+                        ${(d.key_metrics||[]).map(m=>`<span class="metric-badge">${esc(m)}</span>`).join('')}
+                    </div>` : ''}
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                    <button class="btn btn-xs" title="Scan now"
+                        onclick="scanNow(${d.id})" style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-play text-success"></i>
+                    </button>
+                    <button class="btn btn-xs" title="${d.enabled ? 'Pause':'Resume'}"
+                        onclick="toggleEnabled(${d.id}, ${d.enabled ? 0:1})"
+                        style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-${d.enabled ? 'pause':'play'} text-warning"></i>
+                    </button>
+                    <button class="btn btn-xs" title="Remove"
+                        onclick="removeWatchDir(${d.id})"
+                        style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-trash text-danger"></i>
+                    </button>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+function toggleAddDir() {
+    const f = document.getElementById('addDirForm');
+    f.classList.toggle('show');
+    if (!f.classList.contains('show')) {
+        document.getElementById('dirMetricsWrap').querySelectorAll('.metric-tag').forEach(t=>t.remove());
+        document.getElementById('dirMetricInput').value = '';
+        document.getElementById('addDirPath').value       = '';
+        document.getElementById('addDirLabel').value      = '';
+        document.getElementById('addDirScope').value      = 'global';
+        document.getElementById('addDirUserSearch').value = '';
+        document.getElementById('addDirScopeIdWrap').style.display = 'none';
+        document.getElementById('addDirUserWrap').style.display    = 'none';
+        connRenderUserList('dir', '');
+    }
+}
+
+function updateDirScopeFields() {
+    const scope    = document.getElementById('addDirScope').value;
+    const idWrap   = document.getElementById('addDirScopeIdWrap');
+    const idLabel  = document.getElementById('addDirScopeIdLabel');
+    const idSel    = document.getElementById('addDirScopeId');
+    const userWrap = document.getElementById('addDirUserWrap');
+
+    idWrap.style.display   = 'none';
+    userWrap.style.display = 'none';
+
+    if (scope === 'department') {
+        idLabel.textContent = 'Department';
+        idSel.innerHTML = '<option value="">Select department…</option>' + (_connOrg._deptOpts || '');
+        idWrap.style.display = '';
+    } else if (scope === 'project') {
+        idLabel.textContent = 'Project';
+        idSel.innerHTML = '<option value="">Select project…</option>' + (_connOrg._projOpts || '');
+        idWrap.style.display = '';
+    } else if (scope === 'user') {
+        userWrap.style.display = '';
+    }
+}
+
+async function saveWatchDir() {
+    const path    = document.getElementById('addDirPath').value.trim();
+    const label   = document.getElementById('addDirLabel').value.trim();
+    const scope    = document.getElementById('addDirScope').value;
+    const scopeId  = document.getElementById('addDirScopeId').value.trim();
+    const userIds  = scope === 'user' ? connGetSelectedUsers('dir') : [];
+
+    if (!path) { showToast('Folder path required', 'danger'); return; }
+    if (scope === 'department' && !scopeId)    { showToast('Please select a department', 'danger'); return; }
+    if (scope === 'project'    && !scopeId)    { showToast('Please select a project', 'danger'); return; }
+    if (scope === 'user'       && !userIds.length) { showToast('Please select at least one user', 'danger'); return; }
+
+    const body = {folder_path: path, label, scope, key_metrics: getMetricTags('dirMetricsWrap')};
+    if (scopeId)       body.scope_id = parseInt(scopeId);
+    if (userIds.length) body.user_ids = userIds;
+
+    const r = await fetch('/api/knowledge/watch-dirs', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.success) {
+        showToast('Directory connector added', 'success');
+        toggleAddDir();
+        loadWatchDirs();
+    } else {
+        showToast(d.error || 'Failed to add', 'danger');
+    }
+}
+
+async function scanNow(dirId) {
+    showToast('Scanning…', 'info');
+    const r = await fetch(`/api/knowledge/watch-dirs/${dirId}/scan`, {method:'POST'});
+    const d = await r.json();
+    if (d.success) {
+        showToast(`Scan complete — ${d.files_ingested} file(s) ingested`, 'success');
+        loadWatchDirs();
+    } else {
+        showToast(d.error || 'Scan failed', 'danger');
+    }
+}
+
+async function toggleEnabled(dirId, newState) {
+    await fetch(`/api/knowledge/watch-dirs/${dirId}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled: newState})
+    });
+    loadWatchDirs();
+}
+
+async function removeWatchDir(dirId) {
+    if (!confirm('Remove this directory connector?')) return;
+    await fetch(`/api/knowledge/watch-dirs/${dirId}`, {method:'DELETE'});
+    loadWatchDirs();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ADMIN — PROXY ASSIGNMENTS MODAL
+═══════════════════════════════════════════════════════════════════ */
+async function openProxyAssignModal() {
+    const modal = new bootstrap.Modal(document.getElementById('proxyAssignModal'));
+    modal.show();
+
+    const body = document.getElementById('proxyAssignBody');
+    body.innerHTML = '<div class="text-muted text-center py-3">Loading…</div>';
+
+    try {
+        const [rAssign, rUsers] = await Promise.all([
+            fetch('/api/admin/proxy-assignments').then(r => r.json()),
+            fetch('/api/knowledge/users').then(r => r.json()),
+        ]);
+
+        const assignments = rAssign.assignments || [];
+        const allUsers    = (rUsers.users || []).filter(u => u.role !== 'admin');
+        const devUsers    = allUsers.filter(u => u.role === 'dev');
+
+        // Build map: dev_user_id → [target_user_ids]
+        _proxyChanges = {};
+        for (const a of assignments) {
+            if (!_proxyChanges[a.dev_user_id]) _proxyChanges[a.dev_user_id] = [];
+            _proxyChanges[a.dev_user_id].push(a.target_user_id);
+        }
+
+        if (!devUsers.length) {
+            body.innerHTML = '<div class="text-muted text-center py-3">No dev users found.</div>';
+            return;
+        }
+
+        body.innerHTML = devUsers.map(dev => {
+            const current = (_proxyChanges[dev.id] || []);
+            const options = allUsers
+                .filter(u => u.id !== dev.id && u.role !== 'dev')
+                .map(u => {
+                    const checked = current.includes(u.id) ? 'checked' : '';
+                    return `
+                        <label class="d-flex align-items-center gap-2 mb-1" style="cursor:pointer;">
+                            <input type="checkbox" class="form-check-input proxy-target-cb"
+                                   data-dev="${dev.id}" data-target="${u.id}" ${checked}
+                                   onchange="onProxyCbChange(${dev.id}, ${u.id}, this.checked)">
+                            <span style="font-size:.85rem;">${esc(u.username)}</span>
+                        </label>`;
+                }).join('');
+
+            return `
+                <div class="mb-4">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="proxy-avatar" style="background:${avatarColor(dev.username)}">
+                            ${dev.username.charAt(0).toUpperCase()}
+                        </div>
+                        <strong style="font-size:.9rem;">${esc(dev.username)}</strong>
+                        <span class="badge bg-info" style="font-size:.65rem;">dev</span>
+                    </div>
+                    <div class="ms-4 ps-2" style="border-left:2px solid var(--border-color,#3c3235);">
+                        <div style="font-size:.75rem; color:#6e6265; margin-bottom:.4rem;">Can proxy as:</div>
+                        ${options}
+                    </div>
+                </div>`;
+        }).join('');
+
+    } catch(e) {
+        body.innerHTML = `<div class="text-danger text-center py-3">Error: ${e.message}</div>`;
+    }
+}
+
+function onProxyCbChange(devId, targetId, checked) {
+    if (!_proxyChanges[devId]) _proxyChanges[devId] = [];
+    if (checked) {
+        if (!_proxyChanges[devId].includes(targetId)) _proxyChanges[devId].push(targetId);
+    } else {
+        _proxyChanges[devId] = _proxyChanges[devId].filter(id => id !== targetId);
+    }
+}
+
+async function saveProxyAssignments() {
+    let ok = true;
+    for (const [devId, targetIds] of Object.entries(_proxyChanges)) {
+        const r = await fetch('/api/admin/proxy-assignments', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({dev_user_id: parseInt(devId), target_user_ids: targetIds})
+        });
+        const d = await r.json();
+        if (!d.success) { ok = false; }
+    }
+    showToast(ok ? 'Proxy assignments saved' : 'Some assignments failed', ok ? 'success' : 'danger');
+    if (ok) bootstrap.Modal.getInstance(document.getElementById('proxyAssignModal')).hide();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RETRIEVAL TRACES
+═══════════════════════════════════════════════════════════════════ */
+async function loadTraces() {
+    try {
+        const r = await fetch('/api/knowledge/rag-traces?limit=30');
+        const d = await r.json();
+        const tbody = document.getElementById('tracesBody');
+        const rows  = d.traces || [];
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No traces yet</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(t => {
+            const conf   = parseFloat(t.confidence || 0);
+            const pct    = Math.round(conf * 100);
+            const color  = conf >= 0.5 ? '#22c55e' : conf >= 0.25 ? '#f59e0b' : '#ef4444';
+            return `
+                <tr>
+                    <td style="white-space:nowrap;">${(t.created_at||'').substr(0,19)}</td>
+                    <td style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                        title="${esc(t.query||'')}">${esc((t.query||'').substr(0,60))}</td>
+                    <td><span class="badge bg-secondary" style="font-size:.65rem;">${t.method||'hybrid'}</span></td>
+                    <td>${t.result_count||0}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="confidence-bar">
+                                <div class="confidence-bar-fill" style="width:${pct}%; background:${color};"></div>
+                            </div>
+                            <span style="font-size:.75rem; color:${color};">${pct}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        ${t.fallback
+                            ? '<span class="badge bg-danger" style="font-size:.65rem;">Fallback</span>'
+                            : '<span class="badge bg-success" style="font-size:.65rem;">OK</span>'}
+                    </td>
+                    <td>${t.latency_ms||0}ms</td>
+                </tr>`;
+        }).join('');
+    } catch(e) {
+        document.getElementById('tracesBody').innerHTML =
+            '<tr><td colspan="7" class="text-danger text-center py-3">Failed to load</td></tr>';
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SHAREPOINT WATCHER
+═══════════════════════════════════════════════════════════════════ */
+let _spWatches = [];
+
+async function loadSPWatches() {
+    try {
+        const r = await fetch('/api/knowledge/sharepoint-watches');
+        const d = await r.json();
+        _spWatches = d.watches || [];
+        renderSPWatches();
+    } catch(e) {
+        document.getElementById('spWatchList').innerHTML =
+            '<div class="text-danger text-center py-2">Failed to load</div>';
+    }
+}
+
+function renderSPWatches() {
+    const el = document.getElementById('spWatchList');
+    if (!_spWatches.length) {
+        el.innerHTML = '<div class="text-muted text-center py-3" style="font-size:.85rem;">No SharePoint folders connected yet.</div>';
+        return;
+    }
+    el.innerHTML = _spWatches.map(w => `
+        <div class="watch-dir-item">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-fill me-2">
+                    <div class="dir-label">${esc(w.label || w.sp_folder_path || w.site_url)}</div>
+                    <div class="dir-path">${esc(w.site_url)}${w.sp_folder_path ? ' / ' + esc(w.sp_folder_path) : ''}</div>
+                    <div class="dir-meta mt-1 d-flex gap-2 flex-wrap">
+                        <span class="scope-badge ${w.scope||'user'}">${w.scope||'user'}</span>
+                        <span><span class="enabled-dot ${w.enabled ? 'on':'off'}"></span>
+                            ${w.enabled ? 'Active':'Paused'}</span>
+                        <span>${w.files_ingested||0} files ingested</span>
+                        <span>Every ${w.poll_interval||60}s</span>
+                        ${w.last_scanned ? `<span>Last scan: ${w.last_scanned.substr(0,19)}</span>` : ''}
+                    </div>
+                    ${(w.key_metrics||[]).length ? `<div class="mt-1 d-flex gap-1 flex-wrap">
+                        ${(w.key_metrics||[]).map(m=>`<span class="metric-badge">${esc(m)}</span>`).join('')}
+                    </div>` : ''}
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                    <button class="btn btn-xs" title="Scan now"
+                        onclick="scanSPNow(${w.id})" style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-play text-success"></i>
+                    </button>
+                    <button class="btn btn-xs" title="${w.enabled ? 'Pause':'Resume'}"
+                        onclick="toggleSPEnabled(${w.id}, ${w.enabled ? 0:1})"
+                        style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-${w.enabled ? 'pause':'play'} text-warning"></i>
+                    </button>
+                    <button class="btn btn-xs" title="Remove"
+                        onclick="removeSPWatch(${w.id})"
+                        style="padding:.2rem .5rem; font-size:.7rem;">
+                        <i class="fas fa-trash text-danger"></i>
+                    </button>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+function toggleAddSP() {
+    const f = document.getElementById('addSPForm');
+    const showing = f.style.display !== 'none';
+    f.style.display = showing ? 'none' : 'block';
+    if (showing) {
+        document.getElementById('spMetricsWrap').querySelectorAll('.metric-tag').forEach(t=>t.remove());
+        document.getElementById('spMetricInput').value = '';
+        document.getElementById('spLabel').value      = '';
+        document.getElementById('spScope').value      = 'global';
+        document.getElementById('spUserSearch').value = '';
+        document.getElementById('spScopeIdWrap').style.display = 'none';
+        document.getElementById('spUserWrap').style.display    = 'none';
+        connRenderUserList('sp', '');
+    }
+}
+
+function updateSPScopeFields() {
+    const scope    = document.getElementById('spScope').value;
+    const idWrap   = document.getElementById('spScopeIdWrap');
+    const idLabel  = document.getElementById('spScopeIdLabel');
+    const idSel    = document.getElementById('spScopeId');
+    const userWrap = document.getElementById('spUserWrap');
+
+    idWrap.style.display   = 'none';
+    userWrap.style.display = 'none';
+
+    if (scope === 'department') {
+        idLabel.textContent = 'Department';
+        idSel.innerHTML = '<option value="">Select department…</option>' + (_connOrg._deptOpts || '');
+        idWrap.style.display = '';
+    } else if (scope === 'project') {
+        idLabel.textContent = 'Project';
+        idSel.innerHTML = '<option value="">Select project…</option>' + (_connOrg._projOpts || '');
+        idWrap.style.display = '';
+    } else if (scope === 'user') {
+        userWrap.style.display = '';
+    }
+}
+
+async function saveSPWatch() {
+    const siteUrl  = document.getElementById('spSiteUrl').value.trim();
+    const folder   = document.getElementById('spFolderPath').value.trim();
+    const label    = document.getElementById('spLabel').value.trim();
+    const scope    = document.getElementById('spScope').value;
+    const scopeId  = document.getElementById('spScopeId').value.trim();
+    const userIds  = scope === 'user' ? connGetSelectedUsers('sp') : [];
+    const interval = parseInt(document.getElementById('spPollInterval').value || '60');
+
+    if (!siteUrl) { showToast('Site URL required', 'danger'); return; }
+    if (scope === 'department' && !scopeId)    { showToast('Please select a department', 'danger'); return; }
+    if (scope === 'project'    && !scopeId)    { showToast('Please select a project', 'danger'); return; }
+    if (scope === 'user'       && !userIds.length) { showToast('Please select at least one user', 'danger'); return; }
+
+    const body = {site_url: siteUrl, sp_folder_path: folder, label, scope, poll_interval: interval,
+                  key_metrics: getMetricTags('spMetricsWrap')};
+    if (scopeId)        body.scope_id = parseInt(scopeId);
+    if (userIds.length) body.user_ids = userIds;
+
+    const r = await fetch('/api/knowledge/sharepoint-watches', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.success) {
+        showToast('SharePoint connector added', 'success');
+        toggleAddSP();
+        loadSPWatches();
+    } else {
+        showToast(d.error || 'Failed to add', 'danger');
+    }
+}
+
+async function scanSPNow(watchId) {
+    showToast('Scanning SharePoint folder…', 'info');
+    const r = await fetch(`/api/knowledge/sharepoint-watches/${watchId}/scan`, {method:'POST'});
+    const d = await r.json();
+    if (d.success) {
+        showToast(`Scan complete — ${d.files_ingested} file(s) ingested`, 'success');
+        loadSPWatches();
+    } else {
+        showToast(d.error || 'Scan failed', 'danger');
+    }
+}
+
+async function toggleSPEnabled(watchId, newState) {
+    await fetch(`/api/knowledge/sharepoint-watches/${watchId}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled: newState})
+    });
+    loadSPWatches();
+}
+
+async function removeSPWatch(watchId) {
+    if (!confirm('Remove this SharePoint connector?')) return;
+    await fetch(`/api/knowledge/sharepoint-watches/${watchId}`, {method:'DELETE'});
+    loadSPWatches();
+}
+
+/* ── Utilities ───────────────────────────────────────────────────── */
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+           .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CONNECTOR MONITOR
+═══════════════════════════════════════════════════════════════════ */
+let _monAutoTimer = null;
+
+async function loadConnectorLogs() {
+    const type   = document.getElementById('monFilterType')?.value   || '';
+    const status = document.getElementById('monFilterStatus')?.value || '';
+    const limit  = document.getElementById('monFilterLimit')?.value  || 100;
+
+    const params = new URLSearchParams({ limit });
+    if (type)   params.set('watch_type', type);
+    if (status) params.set('status', status);
+
+    try {
+        const r = await fetch('/api/knowledge/connector-logs?' + params);
+        const d = await r.json();
+        const logs  = d.logs || [];
+        const tbody = document.getElementById('monitorBody');
+
+        // Update stats
+        const total   = logs.length;
+        const success = logs.filter(l => l.status === 'success').length;
+        const errors  = logs.filter(l => l.status === 'error').length;
+        const chunks  = logs.reduce((s, l) => s + (l.chunk_count || 0), 0);
+        document.getElementById('monStatTotal').textContent   = total;
+        document.getElementById('monStatSuccess').textContent = success;
+        document.getElementById('monStatError').textContent   = errors;
+        document.getElementById('monStatChunks').textContent  = chunks;
+
+        if (!logs.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No log entries yet</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = logs.map(l => {
+            const typeLabel = l.watch_type === 'sharepoint' ? 'sharepoint' : 'filesystem';
+            const statusBadge = `<span class="log-status-badge ${l.status}">${l.status}</span>`;
+            const typeBadge   = `<span class="log-type-badge ${typeLabel}">${typeLabel === 'sharepoint' ? 'SharePoint' : 'Directory'}</span>`;
+            const errCell = l.error_msg
+                ? `<span style="color:#fca5a5;font-size:.75rem;" title="${esc(l.error_msg||'')}">${esc((l.error_msg||'').substr(0,60))}${l.error_msg.length>60?'…':''}</span>`
+                : '<span class="text-muted">—</span>';
+            return `<tr class="log-row">
+                <td style="white-space:nowrap;color:#a89b9d;">${(l.created_at||'').substr(0,19)}</td>
+                <td>${typeBadge}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                    title="${esc(l.watch_label||'')}"><span style="color:#f2eeee;">${esc(l.watch_label||'—')}</span></td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:.78rem;"
+                    title="${esc(l.filename||'')}">${esc(l.filename||'—')}</td>
+                <td>${statusBadge}</td>
+                <td style="color:#C74759;">${l.chunk_count||0}</td>
+                <td>${errCell}</td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        document.getElementById('monitorBody').innerHTML =
+            '<tr><td colspan="7" class="text-danger text-center py-3">Failed to load logs</td></tr>';
+    }
+}
+
+function toggleAutoRefresh() {
+    const on = document.getElementById('monAutoRefresh').checked;
+    if (_monAutoTimer) { clearInterval(_monAutoTimer); _monAutoTimer = null; }
+    if (on) _monAutoTimer = setInterval(loadConnectorLogs, 30000);
+}
+
+function avatarColor(name) {
+    const colors = ['#A22E57','#8b5cf6','#ec4899','#f59e0b','#10b981','#A22E57'];
+    let h = 0;
+    for (let i = 0; i < (name||'').length; i++) h = (h + name.charCodeAt(i)) % colors.length;
+    return colors[h];
+}
+
+function showToast(msg, type = 'info') {
+    let c = document.getElementById('toastContainer');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'toastContainer';
+        c.style.cssText = 'position:fixed;top:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;';
+        document.body.appendChild(c);
+    }
+    const t = document.createElement('div');
+    const colorMap = {success:'#22c55e', danger:'#ef4444', info:'#A22E57', warning:'#f59e0b'};
+    t.style.cssText = `
+        background:#251e21; border:1px solid ${colorMap[type]||'#574c4f'};
+        border-left:4px solid ${colorMap[type]||'#574c4f'};
+        color:#f2eeee; padding:.65rem 1rem; border-radius:8px;
+        font-size:.85rem; max-width:320px; box-shadow:0 4px 16px rgba(0,0,0,.4);
+        animation: fadeInRight .2s ease;`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+}
+</script>
+{% endblock %}

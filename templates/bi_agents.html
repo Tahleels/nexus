@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}BI Agents - AI BI Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-chart-bar me-2"></i>BI Agents</h2>
+        <p class="text-muted mb-0">Manage your Business Intelligence agents</p>
+    </div>
+    {% if current_user.role in ['admin', 'dev'] %}
+    <button class="btn btn-primary" onclick="showCreateAgentModal()">
+        <i class="fas fa-plus me-2"></i>Create BI Agent
+    </button>
+    {% endif %}
+</div>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-3" id="agentsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="agents-list-tab" data-bs-toggle="tab" data-bs-target="#agents-list-panel" type="button" role="tab">
+            <i class="fas fa-list me-1"></i>Agents
+        </button>
+    </li>
+    {% if current_user.role in ['admin', 'dev'] %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="agents-dictionary-tab" data-bs-toggle="tab" data-bs-target="#agents-dictionary-panel" type="button" role="tab">
+            <i class="fas fa-book me-1"></i>Agent Dictionary
+        </button>
+    </li>
+    {% endif %}
+</ul>
+
+<div class="tab-content" id="agentsTabContent">
+    <!-- Agents List Tab -->
+    <div class="tab-pane fade show active" id="agents-list-panel" role="tabpanel">
+        <!-- Org context filter bar -->
+        <div id="biAgentsOrgBar" class="d-flex align-items-center gap-2 mb-3 flex-wrap"
+             style="display:none!important;">
+            <span class="text-muted small"><i class="fas fa-filter me-1"></i>Filtering by:</span>
+            <span id="biAgentsOrgLabel" class="badge bg-primary"></span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    onclick="clearBiOrgFilter()">Clear</button>
+        </div>
+        <div id="bi-agents-list">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Agent Name</th>
+                            <th>Description</th>
+                            <th>Database Connection</th>
+                            <th>Department / Project</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agents-tbody">
+                        <tr id="loading-row">
+                            <td colspan="6" class="text-center py-4">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading agents...</span>
+                                </div>
+                                <p class="mt-2 mb-0">Loading agents...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Dictionary Tab -->
+    {% if current_user.role in ['admin', 'dev'] %}
+    <div class="tab-pane fade" id="agents-dictionary-panel" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="text-muted mb-0">View and edit the schema, tables, and columns for each BI agent.</p>
+            <button class="btn btn-sm btn-outline-secondary" onclick="agentManager.loadBIAgents()">
+                <i class="fas fa-sync me-1"></i>Refresh
+            </button>
+        </div>
+        <div id="dictionary-agent-cards">
+            <!-- Dictionary cards populated by JS -->
+            <div class="text-center py-5 text-muted">
+                <div class="spinner-border" role="status"></div>
+                <p class="mt-2">Loading agents...</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chat Interface Container (Initially Hidden) -->
+<div id="chatContainer" class="chat-container-wrapper d-none mt-4">
+    <div class="chat-container-header bg-primary text-white p-3 rounded-top">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0" id="chatContainerTitle">
+                <i class="fas fa-robot me-2"></i>Chat with Agent
+            </h5>
+            <button type="button" class="btn btn-sm btn-light" id="closeChatContainer">
+                <i class="fas fa-times"></i> Close
+            </button>
+        </div>
+    </div>
+
+    <div class="chat-container-body border border-top-0 rounded-bottom">
+        <div class="container-fluid">
+            <div class="row">
+                <!-- Chat Column -->
+                <div class="col-md-8 border-end d-flex flex-column">
+                    <!-- Chat Messages -->
+                    <div class="chat-messages flex-grow-1 p-3"
+                        style="overflow-y: auto; min-height: 400px; max-height: 500px;">
+                        <div id="chatContainerMessages">
+                            <div class="alert alert-info">
+                                <small>Ask natural language questions about your data. For example: "Show me the top 5
+                                    customers by revenue" or "What are the sales trends for last quarter?"</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="chat-input border-top p-3 bg-light">
+                        <!-- Tools Dropdown -->
+                        <div class="dropdown d-inline-block me-2 mb-2">
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                                id="toolsDropdownBtn" data-bs-toggle="dropdown">
+                                <i class="fas fa-tools"></i> Tools
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="toolsDropdownBtn">
+                                <li><a class="dropdown-item" href="#" data-action="generate-infographic">
+                                        <i class="fas fa-chart-pie me-2"></i>Generate Infographic
+                                    </a></li>
+                                <li><a class="dropdown-item" href="#" data-action="generate-dashboard">
+                                        <i class="fas fa-tachometer-alt me-2"></i>Generate Dashboard
+                                    </a></li>
+                                <li><a class="dropdown-item" href="#" data-action="generate-report">
+                                        <i class="fas fa-file-alt me-2"></i>Generate Report
+                                    </a></li>
+                            </ul>
+                        </div>
+
+                        <!-- Input with Buttons -->
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <button class="btn btn-outline-secondary" type="button" id="speechContainerBtn">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="webSearchContainerBtn">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+
+                            <input type="text" class="form-control" id="chatContainerInput" autocomplete="off"
+                                placeholder="Ask a question about your data...">
+
+                            <button class="btn btn-primary" type="button" id="sendChatContainerBtn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview Panel (Initially Hidden) -->
+                <div class="col-md-4 d-none d-flex flex-column" id="previewContainerPanel">
+                    <!-- Preview Header -->
+                    <div class="preview-header border-bottom p-3 bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-eye me-2"></i>Preview
+                            </h6>
+                            <div class="preview-actions">
+                                <button class="btn btn-sm btn-outline-primary me-1" id="exportPdfBtn">
+                                    <i class="fas fa-file-pdf"></i> PDF
+                                </button>
+                                <button class="btn btn-sm btn-outline-success me-1" id="exportExcelBtn">
+                                    <i class="fas fa-file-excel"></i> Excel
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="closePreviewContainerBtn">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted" id="previewContainerTitle">Preview</small>
+                    </div>
+
+                    <!-- Preview Content -->
+                    <div class="preview-content flex-grow-1 p-3" style="overflow-y: auto; min-height: 300px;">
+                        <div id="previewContainerContent">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                                <p>Generated content will appear here</p>
+                                <small>Use the Tools menu to generate infographics, dashboards, or reports</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize and load agents when page loads
+    console.log("🔧 bi-agents page JS loaded");
+
+    // Debug: Check if functions are available
+    console.log('🔧 Debug - Available functions:');
+    console.log('  - showCreateAgentModal:', typeof showCreateAgentModal);
+    console.log('  - AgentManager:', typeof AgentManager);
+    console.log('  - agentManager:', window.agentManager);
+</script>
+{% endblock %}
