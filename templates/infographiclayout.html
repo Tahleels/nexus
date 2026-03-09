@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Infographic Report</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:      #080912;
+      --s1:      #101320;
+      --s2:      #181c2e;
+      --s3:      #1f2440;
+      --border:  rgba(255,255,255,0.07);
+      --a1: #6C8EFF; --a2: #A78BFA; --a3: #34D399;
+      --a4: #F472B6; --a5: #FBBF24; --a6: #38BDF8;
+      --text: #E8ECFF; --muted: #7B82A0;
+      --r: 14px; --shadow: 0 4px 32px rgba(0,0,0,0.5);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+    html, body { background: var(--bg); color: var(--text); font-family:'DM Sans',sans-serif; }
+    body { min-height:100vh; overflow-x:hidden; }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      position:sticky; top:0; z-index:200;
+      background:rgba(8,9,18,0.9); backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);
+      padding:10px 24px; display:flex; align-items:center; justify-content:space-between;
+    }
+    .toolbar-brand { font-family:'Syne',sans-serif; font-size:.8rem; font-weight:700; color:var(--a1); letter-spacing:.12em; text-transform:uppercase; }
+    .btn-dl {
+      display:flex; align-items:center; gap:6px;
+      padding:8px 18px; border:none; border-radius:9px;
+      background:linear-gradient(135deg,var(--a1),var(--a2));
+      color:#fff; font-family:'Syne',sans-serif; font-size:.82rem; font-weight:700;
+      cursor:pointer; transition:opacity .2s,transform .15s; letter-spacing:.02em;
+    }
+    .btn-dl:hover { opacity:.85; transform:translateY(-1px); }
+
+    /* ── PAGE ── */
+    #infographic-page {
+      max-width:1080px; margin:0 auto;
+      padding:48px 24px 100px;
+      position:relative; z-index:1;
+    }
+
+    /* ── HERO ── */
+    .hero { text-align:center; margin-bottom:56px; animation:fadeUp .7s both; }
+    .hero-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:5px 14px; border-radius:99px;
+      background:rgba(108,142,255,.1); border:1px solid rgba(108,142,255,.22);
+      font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--a1); margin-bottom:18px;
+    }
+    .hero h1 {
+      font-family:'Syne',sans-serif;
+      font-size:clamp(1.8rem,4.5vw,3.2rem); font-weight:800; letter-spacing:-1.5px; line-height:1.08;
+      background:linear-gradient(140deg,#fff 40%,var(--a2) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      margin-bottom:10px;
+    }
+    .hero-sub { color:var(--muted); font-size:.95rem; margin-bottom:20px; }
+    .hero-bar { width:72px; height:3px; margin:0 auto; border-radius:99px; background:linear-gradient(90deg,var(--a1),var(--a2)); }
+
+    /* ── GRID ── */
+    .widget-grid { display:grid; grid-template-columns:repeat(12,1fr); gap:18px; align-items:start; }
+
+    /* ── CARD ── */
+    .wcard {
+      background:var(--s1); border:1px solid var(--border); border-radius:var(--r);
+      padding:24px; box-shadow:var(--shadow);
+      animation:fadeUp .55s both; grid-column:span 12;
+      overflow:visible; /* never clip chart */
+    }
+    .wcard.span6 { grid-column:span 12; }
+    @media(min-width:760px){
+      .wcard.span6 { grid-column:span 6; }
+    }
+
+    /* ── CARD HEADER ── */
+    .card-hdr { display:flex; align-items:center; gap:9px; margin-bottom:20px; }
+    .card-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .card-title { font-family:'Syne',sans-serif; font-size:.95rem; font-weight:700; letter-spacing:-.2px; }
+    .card-badge {
+      margin-left:auto; padding:2px 10px; border-radius:99px;
+      font-size:.68rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    }
+
+    /* ── KPI GRID ── */
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+    .kpi-item {
+      background:var(--s2); border:1px solid var(--border); border-radius:12px;
+      padding:18px 16px; position:relative; overflow:hidden;
+      transition:transform .2s,box-shadow .2s;
+    }
+    .kpi-item:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .kpi-item::after {
+      content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+    }
+    .kpi-item:nth-child(4n+1)::after { background:var(--a1); }
+    .kpi-item:nth-child(4n+2)::after { background:var(--a2); }
+    .kpi-item:nth-child(4n+3)::after { background:var(--a3); }
+    .kpi-item:nth-child(4n+4)::after { background:var(--a5); }
+    .kpi-icon { font-size:1.4rem; margin-bottom:8px; }
+    .kpi-val {
+      font-family:'Syne',sans-serif; font-size:1.9rem; font-weight:800;
+      letter-spacing:-1px; line-height:1;
+      background:linear-gradient(135deg,#fff,var(--a1));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .kpi-lbl { margin-top:5px; font-size:.76rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
+
+    /* ── SUMMARY LIST ── */
+    .insight-list { list-style:none; display:grid; gap:8px; }
+    .insight-list li {
+      display:flex; gap:10px; align-items:flex-start;
+      padding:12px 14px; background:var(--s2); border-radius:10px;
+      border-left:2px solid var(--a1); font-size:.87rem; line-height:1.55; color:var(--text);
+    }
+    .insight-list li .ico { color:var(--a1); font-style:normal; flex-shrink:0; margin-top:1px; }
+
+    /* ── BREAKDOWN LIST ── */
+    .bd-list { list-style:none; display:grid; gap:7px; }
+    .bd-row {
+      display:grid; grid-template-columns:28px 1fr auto;
+      align-items:center; gap:10px;
+      padding:11px 14px; background:var(--s2); border-radius:10px;
+      transition:background .15s;
+    }
+    .bd-row:hover { background:var(--s3); }
+    .bd-rank { font-family:'Syne',sans-serif; font-size:.68rem; font-weight:800; color:var(--muted); }
+    .bd-inner { min-width:0; }
+    .bd-label { font-size:.86rem; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .bd-track { height:3px; background:rgba(255,255,255,.06); border-radius:99px; margin-top:5px; overflow:hidden; }
+    .bd-fill  { height:100%; border-radius:99px; background:linear-gradient(90deg,var(--a1),var(--a2)); transition:width .9s cubic-bezier(.4,0,.2,1); }
+    .bd-val { font-family:'Syne',sans-serif; font-size:.85rem; font-weight:700; color:var(--a3); white-space:nowrap; }
+
+    /* ── CHART WRAP — key: explicit height, no overflow:hidden ── */
+    .chart-outer { position:relative; width:100%; }
+    .chart-outer canvas { display:block; width:100% !important; }
+
+    /* ── STAT BAND (mini stats row below chart) ── */
+    .stat-band { display:flex; gap:12px; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+    .stat-chip { padding:6px 12px; background:var(--s2); border-radius:8px; font-size:.76rem; color:var(--muted); }
+    .stat-chip strong { color:var(--text); font-weight:700; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+    .wcard:nth-child(1){animation-delay:.05s} .wcard:nth-child(2){animation-delay:.1s}
+    .wcard:nth-child(3){animation-delay:.15s} .wcard:nth-child(4){animation-delay:.2s}
+    .wcard:nth-child(5){animation-delay:.25s} .wcard:nth-child(6){animation-delay:.3s}
+    .wcard:nth-child(7){animation-delay:.35s} .wcard:nth-child(8){animation-delay:.4s}
+
+    /* ── FOOTER ── */
+    .ig-footer { text-align:center; margin-top:60px; padding-top:28px; border-top:1px solid var(--border); font-size:.75rem; color:var(--muted); letter-spacing:.05em; }
+
+    /* ── LOADING ── */
+    .ig-loading { text-align:center; padding:80px 20px; color:var(--muted); font-size:.9rem; grid-column:span 12; }
+    .spinner { width:36px; height:36px; border:3px solid var(--s3); border-top-color:var(--a1); border-radius:50%; animation:spin .7s linear infinite; margin:0 auto 16px; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-brand">📊 Nexus AI</span>
+  <button class="btn-dl" onclick="downloadPDF()">⬇ Download PDF</button>
+</div>
+
+<div id="infographic-page">
+  <div class="hero" id="hero">
+    <div class="hero-pill">✦ AI-Generated Report</div>
+    <h1 id="ig-title">Data Infographic</h1>
+    <p class="hero-sub" id="ig-sub">Powered by Nexus AI</p>
+    <div class="hero-bar"></div>
+  </div>
+
+  <div class="widget-grid" id="ig-root">
+    <div class="ig-loading" style="grid-column:span 12">
+      <div class="spinner"></div>Waiting for data…
+    </div>
+  </div>
+
+  <div class="ig-footer" id="ig-footer">Generated · Nexus AI</div>
+</div>
+
+{% if infographic_data %}
+<script id="srv-data" type="application/json">{{ infographic_data|tojson }}</script>
+{% endif %}
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   PALETTE & HELPERS
+═══════════════════════════════════════════════════════════ */
+const PAL_BG = [
+  'rgba(108,142,255,.82)','rgba(167,139,250,.82)','rgba(52,211,153,.82)',
+  'rgba(244,114,182,.82)','rgba(251,191,36,.82)','rgba(56,189,248,.82)',
+  'rgba(248,113,113,.82)','rgba(34,211,238,.82)','rgba(163,230,53,.82)',
+  'rgba(251,146,60,.82)',
+];
+const PAL_BR = PAL_BG.map(c => c.replace('.82',',1)').replace('rgba','rgba'));
+
+function pal(n){ return { bg:Array.from({length:n},(_,i)=>PAL_BG[i%PAL_BG.length]), br:Array.from({length:n},(_,i)=>PAL_BR[i%PAL_BR.length]) }; }
+
+function fmtNum(n){ return n>=1e9?`${(n/1e9).toFixed(1)}B`:n>=1e6?`${(n/1e6).toFixed(1)}M`:n>=1e3?`${(n/1e3).toFixed(1)}K`:String(Math.round(n*100)/100); }
+
+function extractNum(str){
+  if(typeof str==='number') return str;
+  const s=String(str??'').replace(/,/g,'');
+  const m=s.match(/-?[\d]+\.?[\d]*/);
+  return m?parseFloat(m[0]):0;
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)) return res();
+    const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej('Failed:'+src);
+    document.head.appendChild(s);
+  });
+}
+
+let _dotIdx=0;
+const DOTS=['var(--a1)','var(--a2)','var(--a3)','var(--a4)','var(--a5)','var(--a6)'];
+const nextDot=()=>DOTS[(_dotIdx++)%DOTS.length];
+
+/* ═══════════════════════════════════════════════════════════
+   CHART OPTIONS FACTORY
+═══════════════════════════════════════════════════════════ */
+function chartOpts(type, extraOpts){
+  const isPolar = ['pie','doughnut','radar','polarArea'].includes(type);
+  const base = {
+    responsive:true, maintainAspectRatio:false,
+    animation:{ duration:900, easing:'easeOutQuart' },
+    plugins:{
+      legend:{
+        display:true,
+        position: isPolar ? 'right' : 'bottom',
+        labels:{ color:'#7B82A0', padding:14, usePointStyle:true, pointStyleWidth:8, font:{size:11,family:"'DM Sans',sans-serif"} }
+      },
+      tooltip:{
+        backgroundColor:'rgba(16,19,32,.97)', titleColor:'#E8ECFF', bodyColor:'#7B82A0',
+        borderColor:'rgba(108,142,255,.3)', borderWidth:1, padding:12, cornerRadius:9,
+        callbacks:{
+          label(ctx){
+            const v = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
+            return ` ${ctx.dataset.label||''}: ${typeof v==='number'?fmtNum(v):v}`;
+          }
+        }
+      }
+    }
+  };
+  if(!isPolar){
+    base.scales={
+      x:{ grid:{color:'rgba(255,255,255,.04)'}, ticks:{color:'#7B82A0',maxRotation:45,font:{size:11}}, border:{color:'rgba(255,255,255,.07)'} },
+      y:{ grid:{color:'rgba(255,255,255,.06)'}, ticks:{color:'#7B82A0',callback:v=>fmtNum(v),font:{size:11}}, border:{color:'rgba(255,255,255,.07)'} }
+    };
+  }
+  return Object.assign(base, extraOpts||{});
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DATASET ENRICHER — injects colors, tension, etc.
+═══════════════════════════════════════════════════════════ */
+function enrichDatasets(type, datasets){
+  return (datasets||[]).map((ds,i)=>{
+    const n   = Array.isArray(ds.data) ? ds.data.length : 1;
+    const {bg,br} = pal(n);
+    const base = {
+      ...ds,
+      borderWidth : ds.borderWidth ?? 2,
+    };
+    /* Line chart: single accent color per series */
+    if(type==='line'){
+      const c = PAL_BG[i % PAL_BG.length];
+      return { ...base, borderColor:c, backgroundColor:c.replace('.82','.15)'), tension:0.4,
+               fill:false, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:c };
+    }
+    /* Bar */
+    if(type==='bar'){
+      return { ...base, backgroundColor:bg, borderColor:br, borderRadius:5, borderSkipped:false };
+    }
+    /* Pie / Doughnut / PolarArea */
+    if(['pie','doughnut','polarArea'].includes(type)){
+      return { ...base, backgroundColor:bg, borderColor:'rgba(8,9,18,.6)', borderWidth:2,
+               hoverOffset:6 };
+    }
+    /* Radar */
+    if(type==='radar'){
+      const c = PAL_BG[i%PAL_BG.length];
+      return { ...base, borderColor:c, backgroundColor:c.replace('.82','.18)'), pointBackgroundColor:c };
+    }
+    /* Bubble */
+    if(type==='bubble'){
+      return { ...base, backgroundColor:bg, borderColor:br };
+    }
+    return { ...base, backgroundColor:bg, borderColor:br };
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BUILD CHART CONFIG from widget JSON
+   Handles BOTH formats:
+     A) { labels:[...], datasets:[{label, data:[...]}] }   ← standard
+     B) [{ label/name, value }]                            ← flat array (legacy)
+═══════════════════════════════════════════════════════════ */
+function buildChartCfg(widget){
+  const type = (widget.chart_type || 'bar').toLowerCase();
+  const raw  = widget.data;
+
+  let labels   = null;
+  let datasets = null;
+
+  /* ── FORMAT A: raw is an object with labels + datasets ── */
+  if(raw && !Array.isArray(raw) && typeof raw === 'object'){
+    labels   = raw.labels   || null;
+    datasets = raw.datasets || null;
+
+    /* If no datasets but has flat key→value pairs, synthesise */
+    if(!datasets && labels){
+      /* try to find a numeric array */
+      const numKey = Object.keys(raw).find(k => k!=='labels' && Array.isArray(raw[k]));
+      if(numKey) datasets = [{ label: numKey, data: raw[numKey] }];
+    }
+  }
+
+  /* ── FORMAT B: raw is an array of {label/name, value} objects ── */
+  if(Array.isArray(raw) && raw.length){
+    const first = raw[0];
+    if(typeof first === 'object' && first !== null){
+      /* flat [{label, value}] */
+      if('label' in first || 'name' in first){
+        labels   = raw.map(r => r.label ?? r.name ?? '');
+        datasets = [{ label: widget.title||'Value', data: raw.map(r => extractNum(r.value ?? r.v ?? 0)) }];
+      }
+      /* bubble: [{x,y,r}] — wrap */
+      else if('x' in first){
+        datasets = [{ label: widget.title||'Data', data: raw }];
+      }
+    }
+    /* plain number array */
+    if(typeof first === 'number'){
+      datasets = [{ label: widget.title||'Value', data: raw }];
+    }
+  }
+
+  /* ── Fallback: nothing usable ── */
+  if(!datasets || !datasets.length){
+    return null;
+  }
+
+  /* Ensure all dataset .data values are real numbers */
+  datasets = datasets.map(ds => ({
+    ...ds,
+    data: Array.isArray(ds.data) ? ds.data.map(v => {
+      if(typeof v === 'object' && v!==null && 'x' in v) return v; // bubble point
+      return extractNum(v);
+    }) : ds.data
+  }));
+
+  datasets = enrichDatasets(type, datasets);
+
+  return {
+    type,
+    data: { labels: labels||undefined, datasets },
+    options: chartOpts(type)
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WIDGET RENDERERS
+═══════════════════════════════════════════════════════════ */
+
+function renderKPI(card, w){
+  const items = (Array.isArray(w.data) ? w.data : []).concat(Array.isArray(w.items)?w.items:[]);
+  if(!items.length) return;
+  const g = document.createElement('div'); g.className='kpi-grid';
+  items.forEach(it=>{
+    const v = it.value ?? it.v ?? '—';
+    const l = it.label ?? it.name ?? '';
+    const icon = it.icon || '';
+    g.innerHTML += `<div class="kpi-item">
+      ${icon?`<div class="kpi-icon">${icon}</div>`:''}
+      <div class="kpi-val">${v}</div>
+      <div class="kpi-lbl">${l}</div>
+    </div>`;
+  });
+  card.appendChild(g);
+}
+
+function renderInsights(card, w){
+  const items = Array.isArray(w.data)?w.data : Array.isArray(w.points)?w.points:[];
+  if(!items.length) return;
+  const ul = document.createElement('ul'); ul.className='insight-list';
+  items.forEach(pt=>{
+    String(pt).split('•').map(s=>s.trim()).filter(Boolean).forEach(p=>{
+      ul.innerHTML += `<li><i class="ico">→</i>${p}</li>`;
+    });
+  });
+  card.appendChild(ul);
+}
+
+function renderBreakdown(card, w){
+  const items = Array.isArray(w.data)?w.data:[];
+  if(!items.length) return;
+  const nums = items.map(it=>extractNum(it.value??it.v??0));
+  const mx   = Math.max(...nums,1);
+  const ul = document.createElement('ul'); ul.className='bd-list';
+  items.forEach((it,i)=>{
+    const pct = Math.round(nums[i]/mx*100);
+    ul.innerHTML += `<li class="bd-row">
+      <span class="bd-rank">#${String(i+1).padStart(2,'0')}</span>
+      <div class="bd-inner">
+        <div class="bd-label">${it.label??it.name??''}</div>
+        <div class="bd-track"><div class="bd-fill" style="width:${pct}%"></div></div>
+      </div>
+      <span class="bd-val">${it.value??it.v??''}</span>
+    </li>`;
+  });
+  card.appendChild(ul);
+}
+
+function renderChart(card, w, idx, chartReady){
+  const cfg = buildChartCfg(w);
+  if(!cfg){
+    card.innerHTML += `<p style="color:var(--muted);font-size:.85rem;padding:20px 0">No chart data available.</p>`;
+    return;
+  }
+
+  const heightMap = { bar:330, line:300, pie:310, doughnut:310, radar:330, bubble:330, polarArea:310 };
+  const h = heightMap[cfg.type] || 320;
+
+  const outer = document.createElement('div');
+  outer.className = 'chart-outer';
+  outer.style.height = h+'px';
+
+  const canvas = document.createElement('canvas');
+  canvas.id = `c_${idx}_${Math.random().toString(36).slice(2)}`;
+  canvas.style.height = h+'px';
+  outer.appendChild(canvas);
+  card.appendChild(outer);
+
+  /* stat band for line/bar */
+  if(['line','bar'].includes(cfg.type)){
+    const allNums = cfg.data.datasets.flatMap(ds=>ds.data.map(v=>typeof v==='number'?v:0));
+    if(allNums.length){
+      const sum = allNums.reduce((a,b)=>a+b,0);
+      const avg = sum/allNums.length;
+      const mn  = Math.min(...allNums);
+      const mx  = Math.max(...allNums);
+      const band = document.createElement('div'); band.className='stat-band';
+      band.innerHTML = `
+        <div class="stat-chip">Total <strong>${fmtNum(sum)}</strong></div>
+        <div class="stat-chip">Avg <strong>${fmtNum(avg)}</strong></div>
+        <div class="stat-chip">Min <strong>${fmtNum(mn)}</strong></div>
+        <div class="stat-chip">Max <strong>${fmtNum(mx)}</strong></div>
+      `;
+      card.appendChild(band);
+    }
+  }
+
+  chartReady.then(()=>{
+    requestAnimationFrame(()=>{
+      try { new Chart(canvas.getContext('2d'), cfg); }
+      catch(e){ console.error('Chart.js error:',e,cfg); }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN RENDER
+═══════════════════════════════════════════════════════════ */
+async function renderInfographic(ig){
+  const root = document.getElementById('ig-root');
+  root.innerHTML = '';
+
+  if(!ig || !Array.isArray(ig.widgets) || !ig.widgets.length){
+    root.innerHTML = '<div class="ig-loading" style="grid-column:span 12"><p>No infographic data available.</p></div>';
+    return;
+  }
+
+  /* update hero */
+  if(ig.title)        document.getElementById('ig-title').textContent = ig.title;
+  if(ig.subtitle)     document.getElementById('ig-sub').textContent   = ig.subtitle;
+  if(ig.generated_at) document.getElementById('ig-footer').textContent = `Generated ${ig.generated_at} · Nexus AI`;
+
+  const needChart = ig.widgets.some(w=>(w.widget_type||w.type)==='chart');
+  const chartReady = needChart
+    ? loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js').then(()=>{
+        Chart.defaults.color='#7B82A0';
+        Chart.defaults.font.family="'DM Sans',sans-serif";
+      })
+    : Promise.resolve();
+
+  /* decide half-width widgets */
+  const halfTypes = ['pie','doughnut','radar','polarArea','bubble'];
+  /* count charts to pair them up */
+  const chartWidgets = ig.widgets.filter(w=>(w.widget_type||w.type)==='chart');
+  const halfCharts = new Set();
+  let paired = 0;
+  chartWidgets.forEach(w=>{
+    const ct = (w.chart_type||'bar').toLowerCase();
+    if(halfTypes.includes(ct) || (paired < chartWidgets.length-1 && chartWidgets.length>=2)){
+      /* pair consecutive charts side-by-side */
+    }
+  });
+  /* simpler rule: pie/doughnut/radar get span6; everything else full */
+  ig.widgets.forEach((w,idx)=>{
+    const wtype = (w.widget_type||w.type||'').toLowerCase();
+    const dot   = nextDot();
+    const title = w.title || w.header || '';
+
+    const card = document.createElement('div');
+    card.className = 'wcard';
+
+    const isHalfChart = wtype==='chart' && halfTypes.includes((w.chart_type||'').toLowerCase());
+    const isBreakdown = wtype==='breakdown_list'||wtype==='breakdown';
+    if(isHalfChart || isBreakdown) card.classList.add('span6');
+
+    /* header */
+    if(title){
+      const hdr=document.createElement('div'); hdr.className='card-hdr';
+      const badgeMap={chart:'CHART',kpi_showcase:'METRICS',breakdown_list:'RANKING',summary_list:'INSIGHTS'};
+      const badge=badgeMap[wtype]||'';
+      const badgeColors={chart:'rgba(108,142,255,.15)',kpi_showcase:'rgba(52,211,153,.15)',breakdown_list:'rgba(251,191,36,.15)',summary_list:'rgba(167,139,250,.15)'};
+      const badgeTc={chart:PAL_BG[0],kpi_showcase:'var(--a3)',breakdown_list:'var(--a5)',summary_list:'var(--a2)'};
+      hdr.innerHTML=`<div class="card-dot" style="background:${dot}"></div>
+        <span class="card-title">${title}</span>
+        ${badge?`<span class="card-badge" style="background:${badgeColors[wtype]||'rgba(255,255,255,.06)'};color:${badgeTc[wtype]||'var(--muted)'}">${badge}</span>`:''}`;
+      card.appendChild(hdr);
+    }
+
+    if(wtype==='kpi_showcase'||wtype==='kpi') renderKPI(card,w);
+    else if(wtype==='summary_list'||wtype==='summary') renderInsights(card,w);
+    else if(wtype==='breakdown_list'||wtype==='breakdown') renderBreakdown(card,w);
+    else if(wtype==='chart') renderChart(card,w,idx,chartReady);
+    else card.innerHTML+=`<p style="color:var(--muted);font-size:.85rem">Unknown widget: ${wtype}</p>`;
+
+    root.appendChild(card);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PDF DOWNLOAD
+═══════════════════════════════════════════════════════════ */
+async function downloadPDF(){
+  const {jsPDF} = window.jspdf;
+  const el = document.getElementById('infographic-page');
+  try {
+    /* scroll to top, let charts fully paint */
+    window.scrollTo(0,0);
+    await new Promise(r=>setTimeout(r,300));
+    const cvs = await html2canvas(el,{
+      scale:2, useCORS:true, logging:false,
+      backgroundColor:'#080912',
+      windowWidth: el.scrollWidth,
+      height: el.scrollHeight,
+      y: 0,
+    });
+    const img=cvs.toDataURL('image/png');
+    const mmW=cvs.width*0.264583, mmH=cvs.height*0.264583;
+    const pdf=new jsPDF({orientation:'p',unit:'mm',format:[mmW,mmH]});
+    pdf.addImage(img,'PNG',0,0,mmW,mmH);
+    pdf.save('infographic.pdf');
+  } catch(e){ console.error('PDF:',e); alert('PDF generation failed.'); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded',()=>{
+  const slot=document.getElementById('srv-data');
+  if(slot?.textContent?.trim()){
+    try{ renderInfographic(JSON.parse(slot.textContent)); }catch(e){console.error(e);}
+  }
+});
+
+window.addEventListener('message',ev=>{
+  const d=ev.data;
+  if(!d) return;
+
+  if(d.type==='infographic'||d.type==='infographicData'){
+    renderInfographic(d.infographic||d.data||d);
+  }
+
+  /* Loading state — show spinner while parent fetches */
+  else if(d.type==='infographicLoading'){
+    const root=document.getElementById('ig-root');
+    if(root) root.innerHTML=`
+      <div class="ig-loading" style="grid-column:span 12">
+        <div class="spinner"></div>${d.message||'Generating infographic…'}
+      </div>`;
+    document.getElementById('ig-title').textContent='Generating…';
+    document.getElementById('ig-sub').textContent='Please wait';
+  }
+
+  /* Error state */
+  else if(d.type==='infographicError'){
+    const root=document.getElementById('ig-root');
+    if(root) root.innerHTML=`
+      <div class="ig-loading" style="grid-column:span 12">
+        <p style="color:#F87171;font-size:.9rem">⚠ ${d.error||'Generation failed'}</p>
+        <p style="color:var(--muted);font-size:.8rem;margin-top:8px">Close and try again.</p>
+      </div>`;
+  }
+});
+</script>
+</body>
+</html>

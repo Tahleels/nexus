@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Document Viewer</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#A22E57;--green:#16a34a;--amber:#d97706;--purple:#7c3aed;--slate:#574c4f;
+  --bg:#f0f4f8;--surface:#fff;--border:#e6dfe0;--text:#150f12;--muted:#6e6265;
+  --accent:#A22E57;
+  --sh:0 1px 4px rgba(0,0,0,.06),0 4px 20px rgba(0,0,0,.06);
+  --sh-lg:0 8px 40px rgba(0,0,0,.10);
+}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+
+/* ── TOOLBAR ── */
+.toolbar{
+  position:sticky;top:0;z-index:100;
+  background:linear-gradient(135deg,#150f12 0%,#251e21 100%);
+  color:#e6dfe0;
+  padding:0 20px;height:52px;
+  display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.30);
+}
+.tb-dot{width:8px;height:8px;border-radius:50%;background:#C74759;box-shadow:0 0 6px rgba(199,71,89,.6);flex-shrink:0}
+.tb-icon{font-size:1.1rem;flex-shrink:0}
+.tb-icon.docx{color:#60a5fa}
+.tb-icon.xlsx{color:#4ade80}
+.tb-icon.csv {color:#fbbf24}
+.tb-icon.txt {color:#a89b9d}
+.tb-icon.markdown{color:#c084fc}
+.tb-icon.pdf {color:#f87171}
+.tb-name{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;color:#f2eeee}
+.tb-badge{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  padding:3px 9px;border-radius:99px;background:rgba(162,46,87,.18);color:#e8a9b8;border:1px solid rgba(162,46,87,.25)}
+.tb-dl{
+  display:flex;align-items:center;gap:6px;padding:7px 16px;
+  border-radius:8px;border:none;cursor:pointer;font-family:'Inter',sans-serif;
+  font-size:.78rem;font-weight:600;white-space:nowrap;
+  background:linear-gradient(135deg,#A22E57,#6B2038);color:#fff;
+  box-shadow:0 2px 8px rgba(162,46,87,.35);
+  transition:opacity .15s,transform .1s,box-shadow .15s;
+}
+.tb-dl:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 4px 16px rgba(162,46,87,.45)}
+.tb-dl:active{transform:translateY(0)}
+
+/* ── CONTENT WRAPPER ── */
+html.pdf-mode,html.pdf-mode body{overflow:hidden}
+#content{min-height:calc(100vh - 52px);padding:32px 40px 60px}
+#content.pdf-full{padding:0;height:calc(100vh - 52px);overflow:hidden;display:flex;flex-direction:column}
+#content.pdf-full iframe{flex:1;width:100%;border:none;display:block;min-height:0}
+
+/* ── LOADING STATE ── */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:12px;color:var(--muted)}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── MARKDOWN DOCUMENT ── */
+.doc-page{max-width:800px;margin:0 auto;background:var(--surface);border-radius:16px;
+  border:1px solid var(--border);box-shadow:var(--sh-lg);overflow:hidden}
+.doc-cover{
+  padding:44px 52px 32px;
+  background:linear-gradient(135deg,#150f12 0%,#4A1C2E 100%);
+  position:relative;overflow:hidden;
+}
+.doc-cover::before{
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:220px;height:220px;border-radius:50%;
+  background:rgba(162,46,87,.16);
+}
+.doc-cover::after{
+  content:'';position:absolute;bottom:-40px;left:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:rgba(107,32,56,.14);
+}
+.doc-cover h1{font-size:1.7rem;font-weight:700;color:#f2eeee;line-height:1.25;margin-bottom:10px;position:relative;z-index:1}
+.doc-cover .doc-meta{font-size:.78rem;color:#a89b9d;position:relative;z-index:1;display:flex;align-items:center;gap:8px}
+.doc-cover .doc-meta span{background:rgba(255,255,255,.08);padding:2px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.1)}
+.doc-body{padding:40px 52px;font-size:.94rem;line-height:1.85;color:#251e21}
+.doc-body h1{font-size:1.45rem;font-weight:700;margin:32px 0 10px;color:var(--text);border-bottom:2px solid var(--border);padding-bottom:8px}
+.doc-body h2{font-size:1.18rem;font-weight:700;margin:28px 0 8px;color:#150f12;display:flex;align-items:center;gap:8px}
+.doc-body h2::before{content:'';display:inline-block;width:4px;height:18px;background:var(--accent);border-radius:4px;flex-shrink:0}
+.doc-body h3{font-size:1rem;font-weight:600;margin:20px 0 6px;color:#3c3235}
+.doc-body p{margin-bottom:16px}
+.doc-body ul,.doc-body ol{margin:8px 0 16px 24px}
+.doc-body li{margin-bottom:6px}
+.doc-body strong{font-weight:700;color:#150f12}
+.doc-body em{color:#3c3235}
+.doc-body code{font-family:'JetBrains Mono',monospace;font-size:.81rem;background:#f2eeee;padding:2px 7px;border-radius:5px;color:#7c3aed;border:1px solid #e6dfe0}
+.doc-body pre{background:#150f12;border-radius:12px;padding:18px 22px;overflow-x:auto;margin:16px 0;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.doc-body pre code{background:none;color:#e6dfe0;font-size:.82rem;padding:0;border:none}
+.doc-body blockquote{border-left:4px solid var(--accent);background:linear-gradient(90deg,#F3DCE0,#f8f6f6);margin:16px 0;padding:12px 20px;border-radius:0 10px 10px 0;color:#6B2038;font-style:italic}
+.doc-body hr{border:none;height:2px;background:linear-gradient(90deg,var(--border),transparent);margin:28px 0}
+.doc-body table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.87rem;border-radius:10px;overflow:hidden;box-shadow:var(--sh)}
+.doc-body table th{background:linear-gradient(135deg,#251e21,#150f12);color:#e6dfe0;padding:11px 16px;text-align:left;font-weight:600;font-size:.82rem;letter-spacing:.02em}
+.doc-body table td{padding:10px 16px;border-bottom:1px solid var(--border);color:#3c3235}
+.doc-body table tr:nth-child(even) td{background:#f8f6f6}
+.doc-body table tr:hover td{background:#FBF0F3}
+.doc-body a{color:var(--blue);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
+.doc-body a:hover{border-bottom-color:var(--blue)}
+
+/* ── CSV / XLSX TABLE ── */
+.sheet-tabs{display:flex;gap:4px;margin-bottom:-1px;padding:0 24px}
+.sheet-tab{padding:8px 16px;border-radius:8px 8px 0 0;background:var(--border);
+  font-size:.78rem;font-weight:600;cursor:pointer;color:var(--muted);border:1px solid var(--border);border-bottom:none}
+.sheet-tab.active{background:var(--surface);color:var(--text)}
+.table-card{background:var(--surface);border-radius:16px;border:1px solid var(--border);box-shadow:var(--sh-lg);overflow:hidden}
+.table-header{padding:18px 22px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#150f12,#251e21);display:flex;align-items:center;gap:14px}
+.table-header-icon{font-size:1.4rem}
+.table-header-info{}
+.table-header-info .title{font-size:.9rem;font-weight:700;color:#f2eeee}
+.table-header-info .meta{font-size:.75rem;color:#a89b9d;margin-top:2px}
+.table-meta{padding:10px 20px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--muted);display:flex;gap:16px;background:#f8f6f6}
+.table-scroll{overflow-x:auto;max-height:calc(100vh - 260px)}
+.data-table{width:100%;border-collapse:collapse;font-size:.82rem;min-width:400px}
+.data-table th{background:#150f12;color:#e6dfe0;padding:11px 14px;text-align:left;
+  font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:2;font-size:.78rem;letter-spacing:.02em}
+.data-table th:first-child{background:#1a2540;color:#6e6265;font-weight:400;width:46px;text-align:center}
+.data-table td{padding:9px 14px;border-bottom:1px solid var(--border);color:#3c3235;white-space:nowrap}
+.data-table td:first-child{background:#f8f6f6;color:#a89b9d;text-align:center;font-size:.75rem;font-family:'JetBrains Mono',monospace}
+.data-table tr:hover td{background:#FBF0F3}
+.data-table tr:hover td:first-child{background:#F3DCE0}
+
+/* ── WORD DOC PREVIEW ── */
+.word-preview{max-width:800px;margin:0 auto;background:var(--surface);border-radius:16px;
+  border:1px solid var(--border);box-shadow:var(--sh-lg);overflow:hidden}
+.word-cover{padding:44px 56px 28px;background:linear-gradient(135deg,#150f12,#4A1C2E);position:relative;overflow:hidden}
+.word-cover::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:rgba(162,46,87,.14)}
+.word-cover h1{font-size:1.7rem;font-weight:700;color:#f2eeee;margin-bottom:8px;position:relative;z-index:1}
+.word-cover .meta{font-size:.78rem;color:#a89b9d;position:relative;z-index:1}
+.word-body{padding:40px 56px;font-size:.95rem;line-height:1.85;color:#251e21}
+.word-body h1{font-size:1.55rem;font-weight:700;margin:32px 0 10px;border-bottom:2px solid var(--border);padding-bottom:8px}
+.word-body h2{font-size:1.2rem;font-weight:700;margin:26px 0 8px;color:#150f12;display:flex;align-items:center;gap:8px}
+.word-body h2::before{content:'';display:inline-block;width:4px;height:18px;background:var(--accent);border-radius:4px;flex-shrink:0}
+.word-body h3{font-size:1.05rem;font-weight:600;margin:20px 0 6px;color:#3c3235}
+.word-body p{margin-bottom:14px}
+.word-body ul,.word-body ol{margin:8px 0 14px 24px}
+.word-body li{margin-bottom:5px}
+.word-body table{width:100%;border-collapse:collapse;margin:18px 0;font-size:.86rem;border-radius:10px;overflow:hidden;box-shadow:var(--sh)}
+.word-body table th{background:linear-gradient(135deg,#251e21,#150f12);color:#e6dfe0;padding:10px 16px;font-weight:600;text-align:left;font-size:.82rem}
+.word-body table td{padding:9px 16px;border:1px solid var(--border)}
+.word-body table tr:nth-child(even) td{background:#f8f6f6}
+.word-body table tr:hover td{background:#FBF0F3}
+
+/* ── PLAIN TEXT ── */
+.text-view{max-width:800px;margin:0 auto;background:var(--surface);border-radius:16px;
+  border:1px solid var(--border);box-shadow:var(--sh-lg);overflow:hidden}
+.text-view-header{padding:16px 24px;border-bottom:1px solid var(--border);
+  background:linear-gradient(135deg,#150f12,#251e21);display:flex;align-items:center;justify-content:space-between}
+.text-view-header .fname{font-size:.88rem;font-weight:600;color:#f2eeee}
+.text-view-header .fmeta{font-size:.75rem;color:#a89b9d}
+.text-view pre{padding:28px 32px;font-family:'JetBrains Mono',monospace;font-size:.84rem;
+  line-height:1.75;color:#3c3235;white-space:pre-wrap;word-break:break-word;background:#fafbfc}
+
+/* ── EMPTY / ERROR ── */
+.state-box{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:300px;gap:10px;color:var(--muted)}
+.state-icon{font-size:2.5rem}
+
+@media print{
+  .toolbar{display:none}
+  #content{padding:0}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar" id="toolbar">
+  <div class="tb-dot"></div>
+  <span class="tb-icon" id="tbIcon">📄</span>
+  <span class="tb-name" id="tbName">Document</span>
+  <span class="tb-badge" id="tbBadge">FILE</span>
+  <button class="tb-dl" id="tbDownload" onclick="downloadDoc()">
+    ⬇ Download
+  </button>
+</div>
+
+<div id="content">
+  <div class="loading">
+    <div class="spinner"></div>
+    <span>Loading document…</span>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+let _docData = null;
+
+const TYPE_META = {
+  pdf:      { icon:'📕', label:'PDF',  color:'#f87171' },
+  docx:     { icon:'📝', label:'DOCX', color:'#60a5fa' },
+  xlsx:     { icon:'📊', label:'XLSX', color:'#4ade80' },
+  csv:      { icon:'📋', label:'CSV',  color:'#fbbf24' },
+  txt:      { icon:'📄', label:'TXT',  color:'#a89b9d' },
+  markdown: { icon:'✏️', label:'MD',   color:'#c084fc' },
+};
+
+window.addEventListener('message', ev => {
+  const d = ev.data;
+  if (!d || d.type !== 'documentData') return;
+  _docData = d;
+  renderDoc(d);
+});
+
+function renderDoc(d) {
+  const meta = TYPE_META[d.docType] || TYPE_META.txt;
+
+  // Toolbar
+  document.getElementById('tbIcon').textContent  = meta.icon;
+  document.getElementById('tbIcon').className    = `tb-icon ${d.docType}`;
+  document.getElementById('tbName').textContent  = d.filename || 'Document';
+  document.getElementById('tbBadge').textContent = meta.label;
+
+  const content = document.getElementById('content');
+  const type    = d.docType;
+
+  if (type === 'pdf') {
+    renderPDF(d, content);
+  } else if (type === 'markdown') {
+    renderMarkdown(d, content);
+  } else if (type === 'csv' || type === 'xlsx') {
+    renderTable(d, content);
+  } else if (type === 'docx') {
+    renderWord(d, content);
+  } else {
+    renderPlainText(d, content);
+  }
+}
+
+function renderPDF(d, el) {
+  // Switch to full-height layout so the PDF fills the panel properly
+  el.className = 'pdf-full';
+  document.documentElement.classList.add('pdf-mode');
+
+  const bin = atob(d.content_b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  el.innerHTML = `<iframe src="${url}" frameborder="0"></iframe>`;
+}
+
+function renderMarkdown(d, el) {
+  const text  = d.content_text || '';
+  const lines = text.split('\n');
+  const title = lines[0]?.replace(/^#+\s*/, '') || d.filename;
+  const body  = marked.parse(text);
+  const date  = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  el.innerHTML = `
+    <div class="doc-page">
+      <div class="doc-cover">
+        <h1>${esc(title)}</h1>
+        <div class="doc-meta">
+          <span>📅 ${date}</span>
+          <span>📄 Markdown</span>
+        </div>
+      </div>
+      <div class="doc-body">${body}</div>
+    </div>`;
+}
+
+function renderTable(d, el) {
+  // Support preview_html (pre-rendered) or content_text (CSV)
+  if (d.preview_html) {
+    el.innerHTML = d.preview_html;
+    return;
+  }
+
+  const rows = parseCsv(d.content_text || '');
+  if (!rows.length) {
+    el.innerHTML = '<div class="state-box"><div class="state-icon">📋</div><span>No data</span></div>';
+    return;
+  }
+
+  const isXlsx   = d.docType === 'xlsx';
+  const icon     = isXlsx ? '📊' : '📋';
+  const typeLabel = isXlsx ? 'Excel Spreadsheet' : 'CSV Data';
+  const headers  = rows[0];
+  const data     = rows.slice(1);
+  const ths      = headers.map(h => `<th>${esc(h)}</th>`).join('');
+  const trs      = data.map((row, i) =>
+    `<tr><td>${i+1}</td>${row.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="table-card">
+      <div class="table-header">
+        <div class="table-header-icon">${icon}</div>
+        <div class="table-header-info">
+          <div class="title">${esc(d.filename || typeLabel)}</div>
+          <div class="meta">${headers.length} columns · ${data.length} rows</div>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>#</th>${ths}</tr></thead>
+          <tbody>${trs}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderWord(d, el) {
+  const date = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  if (d.preview_html) {
+    el.innerHTML = `
+      <div class="word-preview">
+        <div class="word-cover">
+          <h1>${esc(d.filename || 'Document')}</h1>
+          <div class="meta">📅 ${date}</div>
+        </div>
+        <div class="word-body">${d.preview_html}</div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="state-box">
+        <div class="state-icon">📝</div>
+        <span>Word document ready — click Download to open in Microsoft Word.</span>
+      </div>`;
+  }
+}
+
+function renderPlainText(d, el) {
+  const text  = d.content_text || '';
+  const lines = text.split('\n').length;
+  el.innerHTML = `
+    <div class="text-view">
+      <div class="text-view-header">
+        <span class="fname">${esc(d.filename || 'document.txt')}</span>
+        <span class="fmeta">${lines} lines · ${text.length.toLocaleString()} chars</span>
+      </div>
+      <pre>${esc(text)}</pre>
+    </div>`;
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+function downloadDoc() {
+  if (!_docData) return;
+  let blob;
+  if (_docData.content_b64) {
+    const bin = atob(_docData.content_b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    blob = new Blob([arr], { type: _docData.mime_type || 'application/octet-stream' });
+  } else {
+    blob = new Blob([_docData.content_text || ''], { type: _docData.mime_type || 'text/plain' });
+  }
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), { href: url, download: _docData.filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function parseCsv(text) {
+  return text.trim().split('\n').map(line => {
+    const cells = [];
+    let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cells.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    cells.push(cur);
+    return cells;
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus AI · Client Presentation</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;0,900;1,600&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --black:  #080C14;
+  --ink:    #131A27;
+  --ink-70: #4A5568;
+  --ink-40: #9AA3B0;
+  --snow:   #F8FAFF;
+  --white:  #FFFFFF;
+  --border: #E4E8F0;
+  --teal:   #00C7B1;
+  --blue:   #0A47A9;
+  --navy:   #0D1B4B;
+  --delivery:    #6080AE;
+  --delivery-bg: #EBF2F9;
+  --process:     #AD8138;
+  --process-bg:  #F8F3EB;
+  --compete:     #589274;
+  --compete-bg:  #ECF5EF;
+  --r: 14px;
+  --sh: 0 2px 16px rgba(8,12,20,.07);
+  --sh-lg: 0 8px 40px rgba(8,12,20,.13);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Outfit',sans-serif;background:var(--black);color:var(--white);min-height:100vh;overflow-x:hidden}
+
+/* ── Topbar ── */
+.topbar{position:sticky;top:0;z-index:200;height:56px;background:rgba(8,12,20,.9);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+.topbar-brand{display:flex;align-items:center;gap:10px;font-family:'Fraunces',serif;font-weight:600;font-size:15px}
+.brand-pip{width:7px;height:7px;background:var(--teal);border-radius:50%;animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.topbar-right{display:flex;gap:8px;align-items:center}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:rgba(255,255,255,.06);color:var(--ink-40);border:1px solid rgba(255,255,255,.1)}
+.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.12);color:var(--white)}
+.btn-teal{background:var(--teal);color:var(--black)}
+.btn-teal:hover:not(:disabled){background:#00E5CD;box-shadow:0 0 18px rgba(0,199,177,.3)}
+.btn-purple{background:#7C3AED;color:#fff}
+.btn-purple:hover:not(:disabled){background:#6D28D9}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+/* ── Page ── */
+.page{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:40px 28px 80px}
+
+/* ── Empty state ── */
+.empty-state{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center}
+.empty-glyph{font-size:60px;opacity:.2;filter:grayscale(1)}
+.empty-title{font-family:'Fraunces',serif;font-size:24px;font-weight:600;color:rgba(255,255,255,.35)}
+.empty-sub{font-size:13px;color:rgba(255,255,255,.22);max-width:340px;line-height:1.7}
+
+/* ── Hero ── */
+.hero{margin-bottom:36px}
+.hero-eyebrow{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--teal);margin-bottom:8px}
+.hero-title{font-family:'Fraunces',serif;font-size:clamp(28px,3.5vw,46px);font-weight:900;line-height:1.05;letter-spacing:-.4px}
+.hero-title em{font-style:italic;color:var(--teal)}
+.hero-meta{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.meta-chip{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-40);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace}
+.meta-dot{width:5px;height:5px;border-radius:50%}
+
+/* ── Slide tabs ── */
+.slide-nav{display:flex;gap:3px;margin-bottom:24px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:4px;width:fit-content}
+.slide-tab{display:flex;align-items:center;gap:7px;padding:8px 18px;border-radius:8px;border:none;background:none;font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;color:var(--ink-40);cursor:pointer;transition:all .2s;white-space:nowrap}
+.slide-tab:hover{color:var(--white);background:rgba(255,255,255,.06)}
+.slide-tab.active{color:var(--white);font-weight:600}
+.slide-tab.active[data-theme="delivery"]   {background:rgba(96,128,174,.25)}
+.slide-tab.active[data-theme="process"]    {background:rgba(173,129,56,.25)}
+.slide-tab.active[data-theme="competitive"]{background:rgba(88,146,116,.25)}
+.tab-dot{width:6px;height:6px;border-radius:50%}
+
+/* ── Slide card ── */
+.slide-card{display:none;background:var(--white);border-radius:18px;overflow:hidden;box-shadow:var(--sh-lg);animation:slideIn .22s ease}
+.slide-card.visible{display:block}
+@keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.slide-header{padding:24px 32px 20px;position:relative;overflow:hidden}
+.slide-header[data-theme="delivery"]   {background:var(--delivery)}
+.slide-header[data-theme="process"]    {background:var(--process)}
+.slide-header[data-theme="competitive"]{background:var(--compete)}
+.slide-header::after{content:'';position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none}
+.slide-header-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px}
+.slide-header-title{font-family:'Fraunces',serif;font-size:clamp(20px,2.8vw,30px);font-weight:900;color:#fff;line-height:1.1;margin-bottom:6px}
+.slide-header-sub{font-size:13px;color:rgba(255,255,255,.72);max-width:580px}
+.stat-box{position:absolute;right:32px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.18);border-radius:12px;padding:12px 20px;text-align:center;min-width:100px;backdrop-filter:blur(4px)}
+.stat-number{font-family:'Fraunces',serif;font-size:28px;font-weight:900;color:#fff;line-height:1}
+.stat-label{font-size:9px;color:rgba(255,255,255,.6);margin-top:3px;letter-spacing:.5px;text-transform:uppercase;font-family:'DM Mono',monospace}
+
+/* ── Slide body ── */
+.slide-body{padding:24px 32px 20px;background:var(--snow)}
+.points-stack{display:flex;flex-direction:column;gap:10px}
+.point-card{background:var(--white);border-radius:10px;padding:14px 18px;display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:flex-start;border:1px solid var(--border);box-shadow:var(--sh);transition:transform .15s}
+.point-card:hover{transform:translateX(3px)}
+.point-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.point-text{font-size:13px;font-weight:600;color:var(--ink);line-height:1.4;margin-bottom:3px}
+.point-detail{font-size:12px;color:var(--ink-70);line-height:1.5}
+[data-theme="delivery"]    .point-icon{background:var(--delivery-bg)}
+[data-theme="process"]     .point-icon{background:var(--process-bg)}
+[data-theme="competitive"] .point-icon{background:var(--compete-bg)}
+
+/* ── Slide footer ── */
+.slide-footer{padding:14px 32px;background:var(--white);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.slide-cta{font-size:12px;color:var(--ink-70);font-style:italic;display:flex;align-items:center;gap:7px}
+.slide-cta::before{content:'→';font-style:normal;font-weight:700;opacity:.4}
+.slide-number{font-family:'DM Mono',monospace;font-size:11px;color:var(--ink-40)}
+
+/* ── OPTIMIZER PANEL ── */
+.optimizer-panel{
+  margin-top:28px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;
+  overflow:hidden;
+  transition:all .2s;
+}
+.optimizer-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.optimizer-title{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;color:rgba(255,255,255,.7)
+}
+.optimizer-title-icon{
+  width:28px;height:28px;border-radius:6px;background:#7C3AED;
+  display:flex;align-items:center;justify-content:center;font-size:14px
+}
+.optimizer-chevron{font-size:12px;color:rgba(255,255,255,.35);transition:transform .2s}
+.optimizer-chevron.open{transform:rotate(180deg)}
+.optimizer-body{padding:20px;display:none}
+.optimizer-body.open{display:block}
+.optimizer-desc{font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;line-height:1.6}
+
+/* quick-prompt chips */
+.quick-prompts{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.qp-chip{
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  color:rgba(255,255,255,.55);cursor:pointer;transition:all .15s
+}
+.qp-chip:hover{background:rgba(124,58,237,.25);border-color:#7C3AED;color:#fff}
+
+.optimizer-input-row{display:flex;gap:8px}
+.optimizer-input{
+  flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:8px;padding:10px 14px;font-family:'Outfit',sans-serif;
+  font-size:13px;color:#fff;resize:none;min-height:44px;
+  transition:border-color .15s;
+}
+.optimizer-input:focus{outline:none;border-color:#7C3AED}
+.optimizer-input::placeholder{color:rgba(255,255,255,.25)}
+
+/* optimizer status */
+.optimizer-status{
+  display:none;align-items:center;gap:8px;
+  font-size:12px;color:rgba(255,255,255,.45);
+  margin-top:10px
+}
+.optimizer-status.visible{display:flex}
+.opt-spinner{
+  width:14px;height:14px;border:2px solid rgba(255,255,255,.1);
+  border-top-color:#7C3AED;border-radius:50%;
+  animation:spin .6s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Loader overlay ── */
+.loader-overlay{display:none;position:fixed;inset:0;background:rgba(8,12,20,.82);backdrop-filter:blur(8px);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:18px}
+.loader-overlay.on{display:flex}
+.loader-ring{width:48px;height:48px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+.loader-text{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.4)}
+.loader-step{font-size:13px;color:var(--teal);max-width:280px;text-align:center;line-height:1.6}
+
+/* ── history badge ── */
+.history-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:10px;font-family:'DM Mono',monospace;letter-spacing:.5px;
+  background:rgba(0,199,177,.12);color:var(--teal);
+  padding:3px 10px;border-radius:20px;border:1px solid rgba(0,199,177,.2)
+}
+
+@media(max-width:680px){
+  .page{padding:20px 14px 60px}
+  .topbar{padding:0 14px}
+  .stat-box{display:none}
+  .slide-header,.slide-body,.slide-footer{padding-left:18px;padding-right:18px}
+  .optimizer-input-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-pip"></div>
+    Nexus AI
+  </div>
+  <div class="topbar-right">
+    <span class="history-badge" id="historyBadge" style="display:none">
+      🕐 <span id="historyCount">0</span> past decks
+    </span>
+    <!-- cached badge: visible when showing a cached result -->
+    <span id="cachedBadge" style="display:none;align-items:center;gap:5px;
+      font-size:10px;font-family:'DM Mono',monospace;letter-spacing:.5px;
+      background:rgba(245,158,11,.12);color:#F59E0B;padding:3px 10px;
+      border-radius:20px;border:1px solid rgba(245,158,11,.25)">
+      ⚡ cached
+    </span>
+    <button class="btn btn-ghost btn-sm" id="btnRegenerate"
+            onclick="requestRegenerate()" style="display:none"
+            title="Regenerate — calls the API fresh and replaces the cached result">
+      ↺ Regenerate
+    </button>
+    <button class="btn btn-ghost btn-sm" id="btnPDF" onclick="downloadPDF()" style="display:none">⬇ PDF</button>
+    <button class="btn btn-teal btn-sm" id="btnPPTX" onclick="downloadPPTX()" style="display:none">⬇ .pptx</button>
+  </div>
+</div>
+
+<!-- LOADER -->
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Working</div>
+  <div class="loader-step" id="loaderStep">Initialising…</div>
+</div>
+
+<div class="page">
+
+  <!-- EMPTY STATE -->
+  <div class="empty-state" id="emptyState">
+    <div class="empty-glyph">🎯</div>
+    <div class="empty-title">Client Presentation Generator</div>
+    <div class="empty-sub">Trigger from the NLQ agent chat — results appear here automatically.</div>
+  </div>
+
+  <!-- PRESENTATION ROOT -->
+  <div id="presentationRoot" style="display:none">
+
+    <div class="hero">
+      <div class="hero-eyebrow" id="heroEyebrow">CLIENT INTELLIGENCE REPORT</div>
+      <div class="hero-title" id="heroTitle">Loading…</div>
+      <div class="hero-meta" id="heroMeta"></div>
+    </div>
+
+    <!-- SLIDE TABS -->
+    <div class="slide-nav" id="slideNav"></div>
+
+    <!-- SLIDES -->
+    <div id="slidesContainer"></div>
+
+    <!-- ══════════════════════════════════════════════
+         OPTIMIZER PANEL
+    ══════════════════════════════════════════════ -->
+    <div class="optimizer-panel" id="optimizerPanel">
+      <div class="optimizer-header" onclick="toggleOptimizer()">
+        <div class="optimizer-title">
+          <div class="optimizer-title-icon">✦</div>
+          Optimize this Presentation
+        </div>
+        <span class="optimizer-chevron" id="optimizerChevron">▼</span>
+      </div>
+
+      <div class="optimizer-body" id="optimizerBody">
+        <div class="optimizer-desc">
+          Describe what you'd like to change and the AI will rebuild the slides instantly.<br>
+          You can target a specific slide ("slide 2", "the process slide") or all three.
+        </div>
+        <!-- Data context chip — populated by JS when slides load -->
+        <div id="dataContextChip" style="display:none;margin-bottom:12px;font-size:11px;color:#486795;background:#EBF2F9;border:1px solid #c8ddf0;border-radius:6px;padding:6px 10px;line-height:1.5;">
+          <strong>Based on:</strong> <span id="dataContextText"></span>
+        </div>
+
+        <!-- Quick-prompt chips -->
+        <div class="quick-prompts" id="quickPrompts">
+          <div class="qp-chip" onclick="useQuickPrompt('Make slide 1 more focused on risks and blockers')">⚠️ Focus on risks</div>
+          <div class="qp-chip" onclick="useQuickPrompt('Rewrite slide 2 with stronger ROI framing for leadership')">💰 Add ROI framing</div>
+          <div class="qp-chip" onclick="useQuickPrompt('Make all slides more concise — max 2 sentences per bullet')">✂️ Make more concise</div>
+          <div class="qp-chip" onclick="useQuickPrompt('Add more technical depth to the process slide')">🔧 More technical depth</div>
+          <div class="qp-chip" onclick="useQuickPrompt('Rewrite the competitive slide to focus on speed-to-insight advantages')">🏆 Speed-to-insight</div>
+          <div class="qp-chip" onclick="useQuickPrompt('Change the tone to be more executive and less operational')">🎯 Executive tone</div>
+        </div>
+
+        <div class="optimizer-input-row">
+          <textarea
+            class="optimizer-input"
+            id="optimizerInput"
+            placeholder="e.g. &quot;Make slide 2 focus more on ROI for the business&quot; or &quot;Rewrite all bottom messages to be more direct&quot;"
+            rows="2"
+          ></textarea>
+          <button class="btn btn-purple" id="optimizeBtn" onclick="runOptimize()">
+            ✦ Optimize
+          </button>
+        </div>
+
+        <div id="optimizerHint" style="display:none;margin-top:8px;font-size:12px;color:#b45309;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;line-height:1.5;"></div>
+        <div id="optimizerSummary" style="display:none;margin-top:8px;font-size:12px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px 12px;line-height:1.5;"></div>
+
+        <div class="optimizer-status" id="optimizerStatus">
+          <div class="opt-spinner"></div>
+          <span id="optimizerStatusText">Refining slides…</span>
+        </div>
+      </div>
+    </div>
+    <!-- end optimizer panel -->
+
+  </div>
+</div>
+
+<!-- Server-side injection (Flask) -->
+{% if presentation_data %}
+<div id="server-presentation-data" style="display:none">{{ presentation_data|tojson }}</div>
+{% endif %}
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let _slides      = [];
+let _client      = {};
+let _clientId    = '';
+let _pptxB64     = null;
+let _dataSummary = null;   // {question, row_count, columns, sample} from the original BI query
+
+const THEME_META = {
+  delivery:    { label:'Delivery',    color:'#6080AE', icon:'🚀' },
+  process:     { label:'Process',     color:'#AD8138', icon:'⚙️' },
+  competitive: { label:'Competitive', color:'#589274', icon:'🏆' },
+};
+
+const LOADER_STEPS = [
+  'Analysing meeting data…',
+  'Detecting client context…',
+  'Building slide narratives…',
+  'Researching competitive landscape…',
+  'Finalising presentation…',
+];
+let _loaderTick = null;
+
+// ═══════════════════════════════════════════════
+// MESSAGE BRIDGE (parent app → iframe)
+// ═══════════════════════════════════════════════
+window.addEventListener('message', ev => {
+  const d = ev.data;
+  if (!d) return;
+  if (d.type === 'presentationLoading') { showLoader(d.step); return; }
+  if (d.type === 'presentationError')   { showErrorState(d.message, d.icon); return; }
+  if (d.type === 'presentationData')    {
+    _dataSummary = d.data_summary || null;
+    renderPresentation(d.slides, d.client || {}, d.pptx_base64, d.client_id || '', d.cached || false);
+    return;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('server-presentation-data');
+  if (el) {
+    try {
+      const d = JSON.parse(el.textContent);
+      if (d.slides) renderPresentation(d.slides, d.client || {}, d.pptx_base64, d.client_id || '', false);
+    } catch(e) {}
+  }
+});
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+function renderPresentation(slides, client, pptxB64, clientId, cached) {
+  hideLoader();
+  _slides   = slides;
+  _client   = client;
+  _clientId = clientId || client.id || '';
+  _pptxB64  = pptxB64;
+
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('presentationRoot').style.display = 'block';
+  document.getElementById('optimizerPanel').style.display = 'block';
+
+  // ── Data context chip ─────────────────────────────────────────────────────
+  if (_dataSummary) {
+    const q    = _dataSummary.question   || '';
+    const rows = _dataSummary.row_count  || 0;
+    const cols = (_dataSummary.columns   || []).slice(0, 4).join(', ');
+    const chip = document.getElementById('dataContextChip');
+    const txt  = document.getElementById('dataContextText');
+    if (chip && txt) {
+      txt.textContent = `"${q}" — ${rows} rows${cols ? ` (${cols}…)` : ''}`;
+      chip.style.display = 'block';
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── cached / fresh indicator ──────────────────────────────────────────────
+  const cachedBadge    = document.getElementById('cachedBadge');
+  const regenBtn       = document.getElementById('btnRegenerate');
+  if (cached) {
+    cachedBadge.style.display  = 'inline-flex';
+    regenBtn.style.display     = 'inline-flex';
+    regenBtn.disabled          = false;
+  } else {
+    cachedBadge.style.display  = 'none';
+    regenBtn.style.display     = 'none';
+    regenBtn.disabled          = false;  // reset for next time
+  }
+
+  // Hero
+  document.getElementById('heroTitle').innerHTML =
+    `<em>${esc(client.name || 'Client')}</em> — Powered by Nexus`;
+
+  const chips = [
+    { dot:'#00C7B1', text:`${slides.length} slides` },
+    { dot: cached ? '#F59E0B' : '#7C3AED',
+      text: cached ? 'from cache' : new Date().toLocaleDateString('en-US',{month:'long',year:'numeric'}) },
+  ];
+  if (client.url) chips.push({ dot:'#0A47A9', text: client.url.replace(/https?:\/\//,'') });
+  document.getElementById('heroMeta').innerHTML = chips.map(c=>
+    `<div class="meta-chip"><div class="meta-dot" style="background:${c.dot}"></div>${esc(c.text)}</div>`
+  ).join('');
+
+  // History badge
+  const hist = client.ppt_history || [];
+  if (hist.length) {
+    document.getElementById('historyBadge').style.display = 'inline-flex';
+    document.getElementById('historyCount').textContent = hist.length;
+  }
+
+  // Tabs
+  document.getElementById('slideNav').innerHTML = slides.map((s,i) => {
+    const m = THEME_META[s.theme] || THEME_META.delivery;
+    return `<button class="slide-tab ${i===0?'active':''}" data-theme="${s.theme}" onclick="switchSlide(${i},this)">
+      <div class="tab-dot" style="background:${m.color}"></div>${m.icon} ${m.label}
+    </button>`;
+  }).join('');
+
+  // Slides
+  document.getElementById('slidesContainer').innerHTML =
+    slides.map((s,i) => buildSlideHTML(s, i, slides.length)).join('');
+
+  document.getElementById('btnPDF').style.display  = 'inline-flex';
+  if (_pptxB64) document.getElementById('btnPPTX').style.display = 'inline-flex';
+}
+
+// ─────────────────────────────────────────────
+function buildSlideHTML(slide, idx, total) {
+  const theme = slide.theme || 'delivery';
+  const meta  = THEME_META[theme] || THEME_META.delivery;
+  const pts   = (slide.points || []).slice(0, 5);
+
+  return `
+  <div class="slide-card ${idx===0?'visible':''}" id="slide-${idx}" data-theme="${theme}">
+    <div class="slide-header" data-theme="${theme}">
+      <div class="slide-header-label">SLIDE ${idx+1} · ${meta.label.toUpperCase()}</div>
+      <div class="slide-header-title">${esc(slide.title||'')}</div>
+      <div class="slide-header-sub">${esc(slide.subtitle||'')}</div>
+      ${slide.headline_stat ? `
+        <div class="stat-box">
+          <div class="stat-number">${esc(slide.headline_stat)}</div>
+          <div class="stat-label">${esc(slide.headline_label||'')}</div>
+        </div>` : ''}
+    </div>
+    <div class="slide-body" data-theme="${theme}">
+      ${buildColumnsHTML(slide, theme)}
+    </div>
+    <div class="slide-footer">
+      <div class="slide-cta">${esc(slide.bottom_message||slide.cta||'')}</div>
+      <div class="slide-number">${idx+1} / ${total}</div>
+    </div>
+  </div>`;
+}
+
+function buildColumnsHTML(slide, theme) {
+  const columns = slide.columns || [];
+  if (!columns.length) return '';
+  const colors = { delivery:'#6080AE', process:'#AD8138', competitive:'#589274' };
+  const col = colors[theme] || '#6080AE';
+
+  return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+    ${columns.map((c,i) => `
+      <div style="background:#fff;border-radius:12px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh)">
+        <div style="background:${i===1?'#486795':col};padding:10px 14px;display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${i+1}</div>
+          <div style="font-size:13px;font-weight:700;color:#fff;line-height:1.2">${esc(c.col_title||'')}</div>
+        </div>
+        <div style="padding:12px 14px">
+          <div style="font-size:11px;font-weight:700;color:${i===1?'#486795':col};margin-bottom:8px;line-height:1.3">${esc(c.col_subtitle||'')}</div>
+          ${(c.bullets||[]).map(b=>`
+            <div style="font-size:12px;color:#37485E;line-height:1.5;margin-bottom:6px;padding-left:10px;border-left:2px solid ${i===1?'#EBF2F9':col+'33'}">${esc(b)}</div>
+          `).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
+// SLIDE NAVIGATION
+// ═══════════════════════════════════════════════
+function switchSlide(idx, btn) {
+  document.querySelectorAll('.slide-card').forEach((c,i) => c.classList.toggle('visible', i===idx));
+  document.querySelectorAll('.slide-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// OPTIMIZER
+// ═══════════════════════════════════════════════
+function toggleOptimizer() {
+  const body    = document.getElementById('optimizerBody');
+  const chevron = document.getElementById('optimizerChevron');
+  body.classList.toggle('open');
+  chevron.classList.toggle('open');
+}
+
+function useQuickPrompt(text) {
+  document.getElementById('optimizerInput').value = text;
+  document.getElementById('optimizerInput').focus();
+}
+
+async function runOptimize() {
+  const instruction = document.getElementById('optimizerInput').value.trim();
+  if (!instruction) { document.getElementById('optimizerInput').focus(); return; }
+  if (!_slides.length) { alert('No slides loaded yet.'); return; }
+
+  const btn    = document.getElementById('optimizeBtn');
+  const status = document.getElementById('optimizerStatus');
+  const stxt   = document.getElementById('optimizerStatusText');
+
+  btn.disabled = true;
+  status.classList.add('visible');
+  stxt.textContent = 'Sending to AI…';
+
+  // Reset previous feedback
+  const _hint    = document.getElementById('optimizerHint');
+  const _summary = document.getElementById('optimizerSummary');
+  if (_hint)    _hint.style.display    = 'none';
+  if (_summary) _summary.style.display = 'none';
+
+  const steps = [
+    'Interpreting your instruction…',
+    'Rewriting slide content…',
+    'Applying changes…',
+    'Rebuilding PPTX…',
+  ];
+  let si = 0;
+  const tick = setInterval(() => { stxt.textContent = steps[si++ % steps.length]; }, 1800);
+
+  try {
+    const res = await fetch('/api/bi-agents/optimize-presentation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slides:       _slides,
+        instruction:  instruction,
+        client_id:    _clientId,
+        data_summary: _dataSummary || null,
+      }),
+    });
+
+    const data = await res.json();
+    clearInterval(tick);
+
+    if (data.status === 'invalid_instruction') {
+      stxt.textContent = '';
+      status.classList.remove('visible');
+      const hint = document.getElementById('optimizerHint');
+      if (hint) { hint.textContent = data.message; hint.style.display = 'block'; }
+      btn.disabled = false;
+      return;
+    }
+
+    // Clear any previous hint/summary
+    const hint    = document.getElementById('optimizerHint');
+    const summary = document.getElementById('optimizerSummary');
+    if (hint)    hint.style.display    = 'none';
+    if (summary) summary.style.display = 'none';
+
+    if (data.status === 'success') {
+      stxt.textContent = '✓ Done — slides updated';
+      _slides  = data.slides;
+      _pptxB64 = data.pptx_base64;
+      if (data.pptx_base64) document.getElementById('btnPPTX').style.display = 'inline-flex';
+
+      document.getElementById('cachedBadge').style.display   = 'none';
+      document.getElementById('btnRegenerate').style.display = 'none';
+
+      const nav = document.querySelectorAll('.slide-tab');
+      let activeIdx = 0;
+      nav.forEach((t,i) => { if (t.classList.contains('active')) activeIdx = i; });
+
+      document.getElementById('slidesContainer').innerHTML =
+        _slides.map((s,i) => buildSlideHTML(s, i, _slides.length)).join('');
+      switchSlide(activeIdx, document.querySelectorAll('.slide-tab')[activeIdx]);
+
+      // Show change summary if provided
+      if (summary && data.change_summary) {
+        summary.textContent = data.change_summary;
+        summary.style.display = 'block';
+      }
+
+      setTimeout(() => {
+        status.classList.remove('visible');
+        document.getElementById('optimizerInput').value = '';
+      }, 2500);
+    } else {
+      stxt.textContent = `Error: ${data.message}`;
+    }
+  } catch(e) {
+    clearInterval(tick);
+    stxt.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Enter key in optimizer textarea
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('optimizerInput');
+  if (inp) {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runOptimize(); }
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// LOADER
+// ═══════════════════════════════════════════════
+function showLoader(step) {
+  document.getElementById('loaderOverlay').classList.add('on');
+  let i = 0;
+  document.getElementById('loaderStep').textContent = step || LOADER_STEPS[0];
+  _loaderTick = setInterval(() => {
+    i = (i+1) % LOADER_STEPS.length;
+    document.getElementById('loaderStep').textContent = LOADER_STEPS[i];
+  }, 2000);
+}
+function hideLoader() {
+  clearInterval(_loaderTick);
+  document.getElementById('loaderOverlay').classList.remove('on');
+}
+
+function showErrorState(message, icon) {
+  hideLoader();
+  const root  = document.getElementById('presentationRoot');
+  const empty = document.getElementById('emptyState');
+  if (root)  root.style.display  = 'none';
+  if (empty) {
+    empty.style.display = 'flex';
+    empty.innerHTML = `
+      <div style="text-align:center;max-width:420px;padding:32px">
+        <div style="font-size:48px;margin-bottom:16px">${icon || '📊'}</div>
+        <div style="font-size:15px;font-weight:600;color:#37485E;margin-bottom:10px">Cannot generate presentation</div>
+        <div style="font-size:13px;color:#6F7F94;line-height:1.6">${message}</div>
+      </div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// DOWNLOAD
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// REGENERATE — posts message to parent which
+// clears cache and re-calls the API
+// ═══════════════════════════════════════════════
+function requestRegenerate() {
+  // Disable the button immediately to prevent double-clicks
+  const btn = document.getElementById('btnRegenerate');
+  if (btn) btn.disabled = true;
+
+  // Hide cached badge while we wait
+  const badge = document.getElementById('cachedBadge');
+  if (badge) badge.style.display = 'none';
+
+  // Tell the parent window to clear cache and re-fetch
+  window.parent.postMessage({ type: 'requestRegenerate' }, '*');
+}
+
+async function downloadPDF() {
+  const root = document.getElementById('presentationRoot');
+  showLoader('Exporting PDF…');
+  try {
+    const { jsPDF } = window.jspdf;
+    window.scrollTo(0,0);
+    const canvas = await html2canvas(root, { scale:1.4, useCORS:true, backgroundColor:'#080C14' });
+    const mmW = canvas.width * .264583;
+    const mmH = canvas.height * .264583;
+    const pdf = new jsPDF({ orientation:'p', unit:'mm', format:[mmW,mmH] });
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, mmW, mmH);
+    pdf.save(`${(_client.name||'Client').replace(/\s+/g,'_')}_Nexus.pdf`);
+  } finally { hideLoader(); }
+}
+
+function downloadPPTX() {
+  if (!_pptxB64) return;
+  const bytes = atob(_pptxB64);
+  const arr   = new Uint8Array(bytes.length);
+  for (let i=0;i<bytes.length;i++) arr[i] = bytes.charCodeAt(i);
+  const blob  = new Blob([arr], { type:'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(_client.name||'Client').replace(/\s+/g,'_')}_Nexus_Presentation.pptx`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ═══════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

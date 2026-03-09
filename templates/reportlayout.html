@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Report</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --brand:      #1a56db;
+            --brand-dark: #1343b0;
+            --accent:     #e9f0ff;
+            --success:    #16a34a;
+            --warn:       #d97706;
+            --danger:     #dc2626;
+            --gray-50:    #f9fafb;
+            --gray-100:   #f3f4f6;
+            --gray-200:   #e5e7eb;
+            --gray-400:   #9ca3af;
+            --gray-600:   #4b5563;
+            --gray-900:   #111827;
+            --radius:     6px;
+            --shadow:     0 1px 4px rgba(0,0,0,.1);
+            --font:       'Segoe UI', system-ui, sans-serif;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            font-family: var(--font);
+            background: var(--gray-50);
+            color: var(--gray-900);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /* ── Shell ── */
+        .report-shell {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Header ── */
+        .report-header {
+            background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+            color: #fff;
+            padding: 14px 20px 12px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(26,86,219,.35);
+        }
+        .report-header h1 {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -.2px;
+        }
+        .report-header p {
+            font-size: 11px;
+            opacity: .8;
+            margin-top: 2px;
+        }
+        .header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .header-meta {
+            font-size: 10px;
+            opacity: .65;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            background: #fff;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .toolbar label {
+            font-size: 11px;
+            color: var(--gray-600);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .toolbar select, .toolbar input[type="text"] {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            padding: 4px 8px;
+            font-size: 12px;
+            background: var(--gray-50);
+            color: var(--gray-900);
+            outline: none;
+            transition: border .15s;
+            height: 28px;
+        }
+        .toolbar select:focus, .toolbar input:focus {
+            border-color: var(--brand);
+        }
+        .toolbar-sep { flex: 1; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 11px;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .15s, box-shadow .15s;
+            height: 28px;
+            white-space: nowrap;
+        }
+        .btn-primary  { background: var(--brand); color:#fff; }
+        .btn-primary:hover  { background: var(--brand-dark); box-shadow: var(--shadow); }
+        .btn-outline  { background:#fff; color:var(--brand); border-color:var(--brand); }
+        .btn-outline:hover  { background: var(--accent); }
+        .btn-sm { padding: 3px 9px; font-size: 11px; height: 24px; }
+        .btn-regen {
+            background: transparent;
+            color: rgba(255,255,255,.85);
+            border: 1px solid rgba(255,255,255,.4);
+            border-radius: var(--radius);
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background .15s;
+        }
+        .btn-regen:hover { background: rgba(255,255,255,.15); }
+        .btn-regen:disabled { opacity: .45; cursor: default; }
+        .spin { display: inline-block; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── KPI strip ── */
+        .kpi-strip {
+            display: flex;
+            gap: 10px;
+            padding: 10px 16px;
+            background: #fff;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+            overflow-x: auto;
+        }
+        .kpi-card {
+            min-width: 120px;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .kpi-card .kpi-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--brand);
+            line-height: 1.1;
+        }
+        .kpi-card .kpi-label {
+            font-size: 10px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-top: 3px;
+        }
+
+        /* ── Insights ── */
+        .insights-bar {
+            padding: 6px 16px;
+            background: var(--accent);
+            border-bottom: 1px solid var(--gray-200);
+            font-size: 11px;
+            color: var(--brand-dark);
+            display: none;
+            gap: 16px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .insights-bar.active { display: flex; }
+        .insight-item::before { content: "💡 "; }
+
+        /* ── Table area ── */
+        .table-area {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .table-scroll {
+            flex: 1;
+            overflow: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: linear-gradient(to bottom, #f3f6ff 0%, #e8eeff 100%);
+            border: 1px solid var(--gray-200);
+            padding: 7px 10px;
+            font-weight: 700;
+            color: var(--gray-600);
+            text-align: left;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            letter-spacing: .1px;
+        }
+        thead th:hover { background: #dce6ff; }
+        thead th .sort-icon { opacity: .4; margin-left: 4px; }
+        thead th.asc  .sort-icon::after { content:"↑"; opacity:1; color:var(--brand); }
+        thead th.desc .sort-icon::after { content:"↓"; opacity:1; color:var(--brand); }
+        thead th:not(.asc):not(.desc) .sort-icon::after { content:"↕"; }
+
+        tbody tr:nth-child(even) td { background: var(--gray-50); }
+        tbody tr:hover td { background: #eef3ff; }
+        td {
+            border: 1px solid var(--gray-200);
+            padding: 6px 10px;
+            vertical-align: top;
+            white-space: nowrap;
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        td.currency { text-align: right; color: var(--success); font-weight: 600; }
+        td.pct      { text-align: right; color: var(--warn); }
+
+        /* ── Footer / Pagination ── */
+        .table-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 16px;
+            background: #fff;
+            border-top: 1px solid var(--gray-200);
+            flex-shrink: 0;
+            font-size: 11px;
+            color: var(--gray-600);
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .pagination { display: flex; gap: 4px; align-items: center; }
+        .page-btn {
+            padding: 3px 9px;
+            border: 1px solid var(--gray-200);
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background .12s;
+        }
+        .page-btn:hover:not(:disabled) { background: var(--accent); }
+        .page-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+        .page-btn:disabled { opacity: .4; cursor: default; }
+
+        /* ── States ── */
+        .state-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 40px;
+            color: var(--gray-400);
+            font-size: 13px;
+        }
+        .state-box svg { opacity: .4; }
+        .spinner {
+            width: 28px; height: 28px;
+            border: 3px solid var(--gray-200);
+            border-top-color: var(--brand);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Search ── */
+        #searchBox { width: 170px; }
+
+        @media (max-width: 640px) {
+            .kpi-strip { padding: 8px 10px; }
+            .toolbar   { padding: 6px 10px; }
+            td, thead th { padding: 4px 6px; }
+        }
+    </style>
+</head>
+<body>
+<div class="report-shell">
+
+    <!-- Header -->
+    <div class="report-header">
+        <div class="header-row">
+            <div>
+                <h1 id="rTitle">Data Report</h1>
+                <p  id="rSubtitle">Loading…</p>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:10px">
+                <button class="btn-regen" id="regenInnerBtn" title="Re-generate report with fresh AI config" style="display:none">
+                    <span id="regenIcon">↺</span> Regenerate
+                </button>
+                <div class="header-meta" id="rMeta"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+        <span style="font-size:12px;color:var(--gray-400)">Waiting for data…</span>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="kpi-strip" id="kpiStrip" style="display:none"></div>
+
+    <!-- Insights -->
+    <div class="insights-bar" id="insightsBar"></div>
+
+    <!-- Table -->
+    <div class="table-area">
+        <div class="table-scroll" id="tableScroll">
+            <div class="state-box"><div class="spinner"></div><span>Loading data…</span></div>
+        </div>
+        <div class="table-footer">
+            <span id="footerInfo">—</span>
+            <div class="pagination" id="pagination"></div>
+            <div style="display:flex;gap:6px;align-items:center">
+                <label for="pageSizeSelect" style="font-size:11px">Rows:</label>
+                <select id="pageSizeSelect" style="font-size:11px;border:1px solid var(--gray-200);border-radius:4px;padding:2px 4px;height:22px">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="250">250</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ================================================================
+   State
+   ================================================================ */
+let _allRows      = [];   // raw rows from parent
+let _columns      = [];   // column names
+let _config       = {};   // report config from LLM / fallback
+let _filtered     = [];   // after search + dropdown filters
+let _sorted       = [];   // after sort
+let _sortCol      = null;
+let _sortDir      = 'desc';
+let _page         = 1;
+let _pageSize     = 50;
+let _activeFilters = {};  // { col: value }
+let _search       = '';
+
+/* ================================================================
+   Formatting helpers
+   ================================================================ */
+function _fmt(val, format) {
+    if (val === null || val === undefined || val === '') return '—';
+    const n = Number(val);
+
+    switch (format) {
+        case 'currency':
+            if (!isNaN(n)) return n.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            break;
+        case 'percent':
+            if (!isNaN(n)) return n.toFixed(1) + '%';
+            break;
+        case 'number':
+            if (!isNaN(n)) return n.toLocaleString(undefined, {maximumFractionDigits:2});
+            break;
+        case 'date':
+            try {
+                const d = new Date(val);
+                if (!isNaN(d)) return d.toLocaleDateString();
+            } catch {}
+            break;
+    }
+    return String(val);
+}
+
+function _tdClass(format) {
+    if (format === 'currency') return 'currency';
+    if (format === 'percent')  return 'pct';
+    if (format === 'number')   return 'num';
+    return '';
+}
+
+/* ================================================================
+   Column config lookup
+   ================================================================ */
+function _colCfg(col) {
+    const tbl = (_config.tables || [])[0];
+    if (!tbl) return { label: col, format: 'text' };
+    return (tbl.columns || []).find(c => c.column_name === col)
+        || { label: col, format: 'text' };
+}
+
+/* ================================================================
+   Apply filters + search → _filtered
+   ================================================================ */
+function _applyFilters() {
+    _filtered = _allRows.filter(row => {
+        // dropdown filters
+        for (const [col, val] of Object.entries(_activeFilters)) {
+            if (val && val !== 'All' && String(row[col]) !== val) return false;
+        }
+        // search
+        if (_search) {
+            const q = _search.toLowerCase();
+            return Object.values(row).some(v =>
+                String(v ?? '').toLowerCase().includes(q)
+            );
+        }
+        return true;
+    });
+    _page = 1;
+    _applySort();
+}
+
+/* ================================================================
+   Sort → _sorted
+   ================================================================ */
+function _applySort() {
+    if (!_sortCol) {
+        _sorted = [..._filtered];
+    } else {
+        _sorted = [..._filtered].sort((a, b) => {
+            const av = a[_sortCol], bv = b[_sortCol];
+            const an = Number(av), bn = Number(bv);
+            let cmp;
+            if (!isNaN(an) && !isNaN(bn)) {
+                cmp = an - bn;
+            } else {
+                cmp = String(av ?? '').localeCompare(String(bv ?? ''));
+            }
+            return _sortDir === 'asc' ? cmp : -cmp;
+        });
+    }
+    _renderTable();
+}
+
+/* ================================================================
+   Render table
+   ================================================================ */
+function _renderTable() {
+    const scrl = document.getElementById('tableScroll');
+
+    if (!_sorted.length) {
+        scrl.innerHTML = '<div class="state-box"><svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><span>No records match current filters.</span></div>';
+        _renderFooter();
+        return;
+    }
+
+    const start = (_page - 1) * _pageSize;
+    const pageRows = _sorted.slice(start, start + _pageSize);
+
+    // Header
+    let thead = '<thead><tr>';
+    for (const col of _columns) {
+        const cfg = _colCfg(col);
+        const dir = _sortCol === col ? _sortDir : '';
+        thead += `<th class="${dir}" data-col="${col}">
+            ${cfg.label || col}<span class="sort-icon"></span>
+        </th>`;
+    }
+    thead += '</tr></thead>';
+
+    // Body
+    let tbody = '<tbody>';
+    for (const row of pageRows) {
+        tbody += '<tr>';
+        for (const col of _columns) {
+            const cfg   = _colCfg(col);
+            const raw   = row[col];
+            const disp  = _fmt(raw, cfg.format);
+            const cls   = _tdClass(cfg.format);
+            tbody += `<td class="${cls}" title="${String(raw ?? '')}">${disp}</td>`;
+        }
+        tbody += '</tr>';
+    }
+    tbody += '</tbody>';
+
+    scrl.innerHTML = `<table>${thead}${tbody}</table>`;
+
+    // Sort click
+    scrl.querySelectorAll('thead th').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (_sortCol === col) {
+                _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                _sortCol = col;
+                _sortDir = 'desc';
+            }
+            _applySort();
+        });
+    });
+
+    _renderFooter();
+}
+
+/* ================================================================
+   Footer / pagination
+   ================================================================ */
+function _renderFooter() {
+    const total = _sorted.length;
+    const pages = Math.max(1, Math.ceil(total / _pageSize));
+    const start = (_page - 1) * _pageSize + 1;
+    const end   = Math.min(_page * _pageSize, total);
+
+    document.getElementById('footerInfo').textContent =
+        total ? `Showing ${start}–${end} of ${total.toLocaleString()} records` : 'No records';
+
+    // Page buttons
+    const pag = document.getElementById('pagination');
+    pag.innerHTML = '';
+    const add = (label, pg, disabled = false) => {
+        const b = document.createElement('button');
+        b.className = 'page-btn' + (pg === _page ? ' active' : '');
+        b.textContent = label;
+        b.disabled = disabled;
+        b.addEventListener('click', () => { _page = pg; _renderTable(); });
+        pag.appendChild(b);
+    };
+
+    add('‹', _page - 1, _page === 1);
+    const lo = Math.max(1, _page - 2), hi = Math.min(pages, _page + 2);
+    if (lo > 1) { add('1', 1); if (lo > 2) pag.insertAdjacentHTML('beforeend', '<span style="padding:0 4px;color:var(--gray-400)">…</span>'); }
+    for (let p = lo; p <= hi; p++) add(p, p);
+    if (hi < pages) { if (hi < pages - 1) pag.insertAdjacentHTML('beforeend', '<span style="padding:0 4px;color:var(--gray-400)">…</span>'); add(pages, pages); }
+    add('›', _page + 1, _page === pages);
+}
+
+/* ================================================================
+   KPI strip
+   ================================================================ */
+function _renderKPIs() {
+    const strip = document.getElementById('kpiStrip');
+    const kpis  = _config.kpis || [];
+    if (!kpis.length) { strip.style.display = 'none'; return; }
+
+    strip.style.display = 'flex';
+    strip.innerHTML = '';
+    for (const k of kpis) {
+        let val;
+        if (k.aggregation === 'COUNT' || k.column === '__count__') {
+            val = _allRows.length.toLocaleString();
+        } else {
+            const nums = _allRows.map(r => Number(r[k.column])).filter(n => !isNaN(n));
+            if (k.aggregation === 'SUM') val = nums.reduce((a, b) => a + b, 0);
+            else if (k.aggregation === 'AVG') val = nums.length ? nums.reduce((a,b)=>a+b,0)/nums.length : 0;
+            else if (k.aggregation === 'MAX') val = Math.max(...nums);
+            else if (k.aggregation === 'MIN') val = Math.min(...nums);
+            else val = nums.reduce((a, b) => a + b, 0);
+
+            val = _fmt(val, k.format || 'number');
+        }
+
+        strip.insertAdjacentHTML('beforeend', `
+            <div class="kpi-card">
+                <div class="kpi-value">${val}</div>
+                <div class="kpi-label">${k.label}</div>
+            </div>
+        `);
+    }
+}
+
+/* ================================================================
+   Insights bar
+   ================================================================ */
+function _renderInsights() {
+    const bar = document.getElementById('insightsBar');
+    const ins = _config.insights || [];
+    if (!ins.length) { bar.classList.remove('active'); return; }
+    bar.innerHTML = ins.map(i => `<span class="insight-item">${i}</span>`).join('');
+    bar.classList.add('active');
+}
+
+/* ================================================================
+   Toolbar (filters + search + export)
+   ================================================================ */
+function _renderToolbar() {
+    const tb = document.getElementById('toolbar');
+    tb.innerHTML = '';
+
+    // Search
+    tb.insertAdjacentHTML('beforeend',
+        `<label for="searchBox">Search</label>
+         <input type="text" id="searchBox" placeholder="Filter all columns…" autocomplete="off" />`
+    );
+    document.getElementById('searchBox').addEventListener('input', e => {
+        _search = e.target.value.trim();
+        _applyFilters();
+    });
+
+    // Dropdown filters from config
+    const filters = _config.filters || [];
+    for (const f of filters) {
+        const col = f.column_name;
+        const opts = (f.options || []).map(o =>
+            `<option value="${o}">${o}</option>`
+        ).join('');
+        tb.insertAdjacentHTML('beforeend',
+            `<label for="flt_${col}">${f.label}</label>
+             <select id="flt_${col}" data-col="${col}">
+                ${opts.includes('>All<') ? '' : '<option value="All">All</option>'}
+                ${opts}
+             </select>`
+        );
+        document.getElementById(`flt_${col}`).addEventListener('change', e => {
+            _activeFilters[col] = e.target.value;
+            _applyFilters();
+        });
+    }
+
+    // Spacer + export
+    tb.insertAdjacentHTML('beforeend', '<span class="toolbar-sep"></span>');
+    tb.insertAdjacentHTML('beforeend',
+        `<button class="btn btn-outline btn-sm" id="btnExcelTb">⬇ Excel</button>
+         <button class="btn btn-primary btn-sm" id="btnPdfTb">⬇ PDF</button>`
+    );
+    document.getElementById('btnExcelTb').addEventListener('click', _exportExcel);
+    document.getElementById('btnPdfTb').addEventListener('click', _exportPDF);
+}
+
+/* ================================================================
+   Export – Excel
+   ================================================================ */
+function _exportExcel() {
+    try {
+        const ws = XLSX.utils.json_to_sheet(_sorted.length ? _sorted : _allRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Report');
+        XLSX.writeFile(wb, `${_config.header?.title || 'report'}.xlsx`);
+    } catch(e) {
+        alert('Excel export failed. Is SheetJS loaded?');
+        console.error(e);
+    }
+}
+
+/* ================================================================
+   Export – PDF  (html2canvas + jsPDF)
+   ================================================================ */
+async function _exportPDF() {
+    try {
+        const el = document.querySelector('.report-shell');
+        const canvas = await html2canvas(el, { scale: 1.5, useCORS: true });
+        const img    = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pw  = pdf.internal.pageSize.getWidth();
+        const ph  = canvas.height * (pw / canvas.width);
+        pdf.addImage(img, 'PNG', 0, 0, pw, ph);
+        pdf.save(`${_config.header?.title || 'report'}.pdf`);
+    } catch(e) {
+        alert('PDF export failed.');
+        console.error(e);
+    }
+}
+
+/* ================================================================
+   Main init  –  called once data arrives
+   ================================================================ */
+function _init(config, columns, rows) {
+    _config  = config || {};
+    _columns = columns || (rows.length ? Object.keys(rows[0]) : []);
+    _allRows = rows || [];
+
+    // Default sort from config
+    const tbl = (_config.tables || [])[0];
+    if (tbl?.sort_by?.column_name && _columns.includes(tbl.sort_by.column_name)) {
+        _sortCol = tbl.sort_by.column_name;
+        _sortDir = (tbl.sort_by.order || 'DESC').toLowerCase();
+    }
+
+    // Default page size from config
+    if (tbl?.page_size) _pageSize = tbl.page_size;
+
+    // Header
+    document.getElementById('rTitle').textContent    = _config.header?.title    || 'Data Report';
+    document.getElementById('rSubtitle').textContent = _config.header?.subtitle || `${_allRows.length.toLocaleString()} records`;
+    document.getElementById('rMeta').innerHTML =
+        `Generated: ${new Date().toLocaleString()}<br>Rows: ${_allRows.length.toLocaleString()} · Cols: ${_columns.length}`;
+
+    _renderToolbar();
+    _renderKPIs();
+    _renderInsights();
+    _applyFilters();   // → _applySort → _renderTable
+}
+
+/* ================================================================
+   Page size select
+   ================================================================ */
+document.getElementById('pageSizeSelect').addEventListener('change', e => {
+    _pageSize = Number(e.target.value);
+    _page = 1;
+    _renderTable();
+});
+
+/* ================================================================
+   Regenerate button (inside the iframe)
+   Sends a message to the PARENT frame asking it to regenerate.
+   The parent's generateReport(true) will bust the cache and refetch.
+   ================================================================ */
+let _lastRawPayload = null;   // kept so we can re-render without re-fetching
+
+document.getElementById('regenInnerBtn').addEventListener('click', async function () {
+    const btn  = this;
+    const icon = document.getElementById('regenIcon');
+    btn.disabled  = true;
+    icon.className = 'spin';
+    icon.textContent = '↺';
+
+    // Ask the parent frame to regenerate (cache-busting)
+    try {
+        window.parent.postMessage({ type: 'requestRegenerate', tool: 'report' }, '*');
+    } catch (_) {}
+
+    // Re-enable after 3 s regardless (parent will send new reportData)
+    setTimeout(() => {
+        btn.disabled   = false;
+        icon.className = '';
+    }, 3000);
+});
+
+/* ================================================================
+   postMessage listener  (receives data from parent frame)
+   Handles both initial load and cache-reuse.
+   ================================================================ */
+window.addEventListener('message', function(event) {
+    const d = event.data;
+    if (!d) return;
+
+    if (d.type === 'reportData') {
+        console.log('📄 reportData received', d);
+
+        _lastRawPayload = d;   // save for potential re-renders
+
+        const rows    = d.rows    || [];
+        const columns = d.columns || (rows.length ? Object.keys(rows[0]) : []);
+        const config  = d.config  || {};
+
+        // Show the regenerate button now that we have real data
+        document.getElementById('regenInnerBtn').style.display = 'inline-flex';
+        // Reset spinner state in case it was spinning
+        const icon = document.getElementById('regenIcon');
+        icon.className   = '';
+        icon.textContent = '↺';
+        document.getElementById('regenInnerBtn').disabled = false;
+
+        _init(config, columns, rows);
+        return;
+    }
+
+    // Parent can send { type: 'reportLoading' } to show a spinner while regenerating
+    if (d.type === 'reportLoading') {
+        document.getElementById('tableScroll').innerHTML =
+            '<div class="state-box"><div class="spinner"></div><span>Regenerating…</span></div>';
+        const icon = document.getElementById('regenIcon');
+        icon.className   = 'spin';
+        icon.textContent = '↺';
+        document.getElementById('regenInnerBtn').disabled = true;
+    }
+});
+</script>
+</body>
+</html>
