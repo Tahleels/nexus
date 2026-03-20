@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Tools - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+.tool-card { background:#fff; border-radius:10px; padding:16px 20px; box-shadow:0 2px 6px rgba(0,0,0,.05); margin-bottom:10px; display:flex; align-items:center; gap:14px; }
+.tool-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+.tool-icon.data { background:#F3DCE0; color:#6B2038; }
+.tool-icon.integration { background:#dcfce7; color:#166534; }
+.tool-icon.communication { background:#fef3c7; color:#92400e; }
+.tool-icon.files { background:#fce7f3; color:#9d174d; }
+.tool-icon.knowledge { background:#ede9fe; color:#5b21b6; }
+.tool-icon.collaboration { background:#f0fdf4; color:#15803d; }
+.tool-icon.system { background:#f2eeee; color:#574c4f; }
+.tool-name { font-weight:600; font-size:.9rem; color:#251e21; }
+.tool-desc { font-size:.8rem; color:#6e6265; }
+.tool-stats { font-size:.75rem; color:#a89b9d; margin-left:auto; text-align:right; }
+.cat-header { font-size:.75rem; font-weight:700; text-transform:uppercase; color:#a89b9d; letter-spacing:.05em; padding:12px 0 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2 class="mb-0"><i class="fas fa-tools me-2"></i>Tool Registry</h2>
+    <p class="text-muted mb-0">All tools available to agents — toggle, test, and inspect</p>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+    <input type="text" class="form-control" style="max-width:280px;" id="toolSearch" placeholder="Search tools…" autocomplete="off" oninput="filterTools()">
+    <select class="form-select" style="max-width:180px;" id="toolCatFilter" onchange="filterTools()">
+        <option value="">All Categories</option>
+    </select>
+</div>
+
+<div id="hubToolsList">
+    <div class="text-center py-5 text-muted"><div class="spinner-border mb-2"></div><p>Loading tools…</p></div>
+</div>
+
+<!-- Test Tool Modal -->
+<div class="modal fade" id="testToolModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Tool: <span id="testToolName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Parameters (JSON)</label>
+                <textarea class="form-control font-monospace" id="testToolParams" rows="5" placeholder='{"query": "example"}'></textarea>
+                <div id="testToolResult" class="mt-3" style="display:none;">
+                    <label class="form-label">Result</label>
+                    <pre id="testToolResultPre" class="bg-dark text-light p-3 rounded" style="font-size:.8rem;max-height:200px;overflow-y:auto;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-primary" onclick="runToolTest()"><i class="fas fa-play me-2"></i>Run Test</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'tools'; initHubPage();</script>
+{% endblock %}

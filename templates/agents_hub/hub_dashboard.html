@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Agents Hub Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+.hub-stat { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); text-align:center; }
+.hub-stat .num { font-size:2rem; font-weight:700; color:#251e21; }
+.hub-stat .lbl { font-size:.8rem; color:#6e6265; margin-top:4px; }
+.hub-stat .ico { font-size:1.5rem; margin-bottom:8px; }
+.hub-card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px; }
+.hub-card h6 { font-weight:600; margin-bottom:14px; color:#374151; }
+.convo-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f2eeee; font-size:.85rem; }
+.convo-row:last-child { border-bottom:none; }
+.agent-run-bar { height:6px; border-radius:3px; background:#e0e7ff; overflow:hidden; margin-top:4px; }
+.agent-run-fill { height:100%; border-radius:3px; transition:width .4s; }
+.status-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block; margin-right:6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2 class="mb-0"><i class="fas fa-sitemap me-2 text-primary"></i>Agents Hub Dashboard</h2>
+    <p class="text-muted mb-0">System-wide view of all agents, workflows and activity</p>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4" id="hubStats">
+    <div class="col-6 col-md-3"><div class="hub-stat"><div class="ico text-primary"><i class="fas fa-robot"></i></div><div class="num skeleton" id="hStat_agents">—</div><div class="lbl">Agents</div></div></div>
+    <div class="col-6 col-md-3"><div class="hub-stat"><div class="ico text-success"><i class="fas fa-comments"></i></div><div class="num skeleton" id="hStat_convos">—</div><div class="lbl">Conversations</div></div></div>
+    <div class="col-6 col-md-3"><div class="hub-stat"><div class="ico text-warning"><i class="fas fa-project-diagram"></i></div><div class="num skeleton" id="hStat_wf">—</div><div class="lbl">Workflows</div></div></div>
+    <div class="col-6 col-md-3"><div class="hub-stat"><div class="ico text-info"><i class="fas fa-coins"></i></div><div class="num skeleton" id="hStat_tokens">—</div><div class="lbl">Total Tokens</div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="hub-stat"><div class="ico text-secondary"><i class="fas fa-tools"></i></div><div class="num" id="hStat_tools">—</div><div class="lbl">Tools</div></div></div>
+    <div class="col-md-3"><div class="hub-stat"><div class="ico text-danger"><i class="fas fa-clock"></i></div><div class="num" id="hStat_jobs">—</div><div class="lbl">Jobs</div></div></div>
+    <div class="col-md-3"><div class="hub-stat"><div class="ico text-purple" style="color:#8b5cf6;"><i class="fas fa-play-circle"></i></div><div class="num" id="hStat_runs">—</div><div class="lbl">Total Runs</div></div></div>
+    <div class="col-md-3"><div class="hub-stat"><div class="ico text-success"><i class="fas fa-heartbeat"></i></div><div class="lbl mt-3"><span class="status-dot"></span><span id="hStat_status">online</span></div></div></div>
+</div>
+
+<div class="row g-3">
+    <!-- Recent Conversations -->
+    <div class="col-md-6">
+        <div class="hub-card">
+            <h6><i class="fas fa-comments me-2 text-primary"></i>Recent Conversations</h6>
+            <div id="hubRecentConvos"><div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div></div>
+        </div>
+    </div>
+
+    <!-- Top Agents -->
+    <div class="col-md-6">
+        <div class="hub-card">
+            <h6><i class="fas fa-trophy me-2 text-warning"></i>Top Agents by Runs</h6>
+            <div id="hubTopAgents"><div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div></div>
+        </div>
+    </div>
+
+    <!-- Recent Workflow Runs -->
+    <div class="col-md-6">
+        <div class="hub-card">
+            <h6><i class="fas fa-project-diagram me-2 text-success"></i>Recent Workflow Runs</h6>
+            <div id="hubRecentWfRuns"><div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div></div>
+        </div>
+    </div>
+
+    <!-- Top Tools -->
+    <div class="col-md-6">
+        <div class="hub-card">
+            <h6><i class="fas fa-tools me-2 text-secondary"></i>Top Tools by Usage</h6>
+            <div id="hubTopTools"><div class="text-muted text-center py-3" style="font-size:.85rem;">Loading…</div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'dashboard'; initHubPage();</script>
+{% endblock %}
