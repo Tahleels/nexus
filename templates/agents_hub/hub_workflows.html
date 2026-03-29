@@ -1,0 +1,1956 @@
+{% extends "base.html" %}
+{% block title %}Workflows — Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Workflow list ────────────────────────────────────────────── */
+.wf-card { background:#fff; border-radius:12px; padding:18px 20px;
+           box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:12px; }
+.wf-card .wf-name { font-weight:700; font-size:.95rem; color:#251e21; }
+.wf-card .wf-desc { font-size:.82rem; color:#6e6265; margin-top:3px; }
+.wf-card .wf-meta { font-size:.75rem; color:#a89b9d; margin-top:8px; }
+.mode-badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:.72rem; font-weight:600; }
+.mode-badge.sequential { background:#F3DCE0; color:#6B2038; }
+.mode-badge.parallel   { background:#fef3c7; color:#92400e; }
+
+/* ── Builder layout ──────────────────────────────────────────── */
+#wfBuilderView { display:none; }
+.wf-builder {
+    display:flex; gap:0;
+    height:calc(100vh - 155px);
+    border-radius:12px; overflow:hidden;
+    background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.06);
+    border:1px solid #e6dfe0;
+}
+
+/* Palette */
+.wf-palette {
+    width:195px; min-width:195px; flex-shrink:0;
+    border-right:1px solid #e6dfe0;
+    padding:10px 8px; overflow-y:auto;
+    background:#f8f6f6;
+}
+.wf-palette h6 {
+    font-size:.68rem; font-weight:700; color:#a89b9d;
+    text-transform:uppercase; letter-spacing:.5px;
+    margin:10px 0 5px; padding:0 4px;
+}
+.wf-palette h6:first-child { margin-top:0; }
+.node-tmpl {
+    display:flex; align-items:center; gap:7px;
+    padding:6px 8px; border-radius:7px;
+    border:1px solid #e6dfe0; margin-bottom:4px;
+    cursor:grab; font-size:.76rem; font-weight:500;
+    background:#fff; transition:border-color .15s, background .15s;
+    user-select:none; color:#374151;
+}
+.node-tmpl:hover { border-color:#6366f1; background:#F8E8EB; }
+.node-tmpl:active { cursor:grabbing; }
+.nt-icon { font-size:13px; flex-shrink:0; }
+
+/* Canvas */
+.wf-canvas {
+    flex:1; position:relative; overflow:hidden;
+    background:#fafbfc;
+    background-image:radial-gradient(circle, #d1d5db 1px, transparent 1px);
+    background-size:24px 24px; min-width:0;
+}
+.wf-canvas-inner { position:absolute; top:0; left:0; width:4000px; height:4000px; }
+#edgeSvg { position:absolute; inset:0; width:100%; height:100%;
+           pointer-events:none; overflow:visible; }
+
+.wf-toolbar {
+    position:absolute; top:10px; left:10px; z-index:20;
+    display:flex; gap:6px;
+}
+
+/* Nodes */
+.wf-node {
+    position:absolute; background:#fff;
+    border:1.5px solid #e6dfe0; border-radius:10px;
+    padding:10px 14px; width:168px;
+    cursor:move; user-select:none;
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+    transition:border-color .15s, box-shadow .15s;
+    z-index:5;
+}
+.wf-node:hover   { border-color:#6366f1; }
+.wf-node.selected{ border-color:#6366f1; box-shadow:0 0 0 2px #6366f140, 0 2px 12px rgba(0,0,0,.1); }
+.wf-node.running { border-color:#f59e0b; animation:wfPulse 1.2s infinite; }
+.wf-node.done    { border-color:#22c55e; }
+.wf-node.error   { border-color:#ef4444; }
+.wf-node.skipped { opacity:.45; border-color:#a89b9d; }
+.wf-node.wf-paused{ border-color:#f59e0b; background:#fffbeb; }
+@keyframes wfPulse {
+  0%,100%{ box-shadow:0 0 0 0 rgba(245,158,11,.4); }
+  50%    { box-shadow:0 0 0 6px rgba(245,158,11,0); }
+}
+.wf-node-header { display:flex; align-items:center; gap:8px; }
+.wf-node-icon   { font-size:15px; flex-shrink:0; }
+.wf-node-label  { font-size:.77rem; font-weight:700; color:#251e21;
+                  line-height:1.3; word-break:break-word; }
+.wf-node-sub    { font-size:.65rem; color:#a89b9d; margin-top:2px;
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wf-node-var    { font-size:.63rem; color:#6366f1; margin-top:3px;
+                  font-family:monospace; }
+
+/* Ports */
+.wf-port {
+    width:13px; height:13px; border-radius:50%;
+    border:2px solid #d3c6c8; background:#fff;
+    cursor:crosshair; position:absolute; z-index:10;
+    transition:border-color .15s, transform .15s, background .15s;
+}
+.wf-port.in {
+    left:-8px; top:50%; transform:translateY(-50%);
+}
+.wf-port.in:hover {
+    border-color:#6366f1; transform:translateY(-50%) scale(1.4); background:#6366f1;
+}
+.wf-port.out {
+    right:-8px; top:50%; transform:translateY(-50%);
+}
+.wf-port.out:hover {
+    border-color:#6366f1; transform:translateY(-50%) scale(1.4); background:#6366f1;
+}
+/* Condition ports */
+.wf-port.out-true {
+    right:-8px; top:33%; transform:translateY(-50%);
+    border-color:#16a34a; background:#dcfce7;
+}
+.wf-port.out-true:hover {
+    background:#16a34a; transform:translateY(-50%) scale(1.4);
+}
+.wf-port.out-false {
+    right:-8px; top:66%; transform:translateY(-50%);
+    border-color:#dc2626; background:#fee2e2;
+}
+.wf-port.out-false:hover {
+    background:#dc2626; transform:translateY(-50%) scale(1.4);
+}
+.wf-port-label {
+    position:absolute; right:10px;
+    font-size:8px; font-weight:800; line-height:1;
+    pointer-events:none; z-index:11;
+}
+.wf-port-label.lbl-true  { top:calc(33% - 10px); color:#16a34a; }
+.wf-port-label.lbl-false { top:calc(66% - 2px);  color:#dc2626; }
+
+/* Properties panel */
+.wf-props {
+    width:245px; min-width:245px; flex-shrink:0;
+    border-left:1px solid #e6dfe0;
+    padding:12px 10px; overflow-y:auto;
+    background:#f8f6f6;
+    display:flex; flex-direction:column;
+}
+.wf-props-section {
+    font-size:.68rem; font-weight:700; color:#a89b9d;
+    text-transform:uppercase; letter-spacing:.5px;
+    margin:10px 0 6px; padding-bottom:4px;
+    border-bottom:1px solid #e6dfe0;
+}
+.wf-props-section:first-child { margin-top:0; }
+.var-hint {
+    font-size:.68rem; color:#6366f1; cursor:pointer;
+    padding:2px 6px; background:#F8E8EB; border-radius:4px;
+    border:1px solid #c7d2fe; display:inline-block; margin:1px;
+}
+.var-hint:hover { background:#c7d2fe; }
+.wf-run-log {
+    background:#251e21; border-radius:8px; padding:10px 12px;
+    color:#d3c6c8; font-size:.72rem; font-family:monospace;
+    max-height:200px; overflow-y:auto; white-space:pre-wrap; line-height:1.5;
+    flex-shrink:0;
+}
+.wf-run-log .log-ok   { color:#4ade80; }
+.wf-run-log .log-info { color:#D189A0; }
+.wf-run-log .log-warn { color:#fbbf24; }
+.wf-run-log .log-err  { color:#f87171; }
+.wf-run-log .log-dim  { color:#574c4f; }
+
+/* Vars panel */
+#wfVarsPanel .var-row {
+    display:flex; align-items:center; gap:6px;
+    font-size:.72rem; padding:3px 0; border-bottom:1px solid #f2eeee;
+}
+#wfVarsPanel .var-name { font-family:monospace; color:#6366f1; font-weight:600; }
+#wfVarsPanel .var-from { color:#a89b9d; font-size:.65rem; }
+
+/* Loop ports */
+.wf-port.loop-body { right:-8px; top:35%; transform:translateY(-50%); border-color:#A22E57; background:#F3DCE0; }
+.wf-port.loop-body:hover { background:#A22E57; transform:translateY(-50%) scale(1.4); }
+.wf-port.loop-done { right:-8px; top:65%; transform:translateY(-50%); border-color:#16a34a; background:#dcfce7; }
+.wf-port.loop-done:hover { background:#16a34a; transform:translateY(-50%) scale(1.4); }
+.wf-port-label.lbl-body { top:calc(35% - 10px); color:#A22E57; }
+.wf-port-label.lbl-done { top:calc(65% - 2px);  color:#16a34a; }
+
+/* Connecting wire */
+#wfConnectingLine {
+    position:absolute; pointer-events:none; z-index:50;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── LIST VIEW ─────────────────────────────────────────────────────────── -->
+<div id="wfListView">
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-0"><i class="fas fa-project-diagram me-2"></i>Workflows</h2>
+            <p class="text-muted mb-0">Build and run multi-step automated workflows</p>
+        </div>
+        <button class="btn btn-primary" onclick="showCreateModal()">
+            <i class="fas fa-plus me-2"></i>New Workflow
+        </button>
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabWfList">Workflows</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabWfRuns" onclick="loadWfRuns()">Run History</button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tabWfList">
+            <div id="wfCardList">
+                <div class="text-center py-5 text-muted">
+                    <div class="spinner-border mb-2"></div><p>Loading…</p>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="tabWfRuns">
+            <div id="wfRunsList">
+                <div class="text-center py-4 text-muted" style="font-size:.85rem;">Loading run history…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── BUILDER VIEW ──────────────────────────────────────────────────────── -->
+<div id="wfBuilderView">
+    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+        <button class="btn btn-sm btn-outline-secondary" onclick="closeBuilder()">
+            <i class="fas fa-arrow-left me-1"></i>Back
+        </button>
+        <div class="flex-grow-1">
+            <strong id="builderWfName" style="font-size:1rem;color:#251e21;"></strong>
+            <span class="text-muted ms-2" id="builderWfDesc" style="font-size:.82rem;"></span>
+        </div>
+        <select class="form-select form-select-sm" id="builderMode" style="width:auto;">
+            <option value="sequential">Sequential</option>
+            <option value="parallel">Parallel</option>
+        </select>
+        <button class="btn btn-sm btn-outline-primary" onclick="WFBuilder.save()">
+            <i class="fas fa-save me-1"></i>Save
+        </button>
+        <button class="btn btn-sm btn-success" id="builderRunBtn" onclick="showRunModal()">
+            <i class="fas fa-play me-1"></i>Run
+        </button>
+    </div>
+
+    <div class="wf-builder">
+
+        <!-- LEFT: Palette -->
+        <div class="wf-palette" id="wfPalette">
+            <h6>Sources</h6>
+            <div class="node-tmpl" draggable="true" data-type="trigger"      data-label="Trigger">     <span class="nt-icon">▶</span>Trigger</div>
+            <div class="node-tmpl" draggable="true" data-type="db_read"      data-label="DB Read">     <span class="nt-icon">🗃️</span>DB Read</div>
+            <div class="node-tmpl" draggable="true" data-type="file_read"    data-label="File Read">   <span class="nt-icon">📂</span>File Read</div>
+            <div class="node-tmpl" draggable="true" data-type="email_read"   data-label="Email Read">  <span class="nt-icon">📧</span>Email Read</div>
+
+            <h6>Loop</h6>
+            <div class="node-tmpl" draggable="true" data-type="loop_start"   data-label="Loop Start">  <span class="nt-icon">🔁</span>Loop Start</div>
+            <div class="node-tmpl" draggable="true" data-type="loop_end"     data-label="Loop End">    <span class="nt-icon">⏹</span>Loop End</div>
+
+            <h6>Logic</h6>
+            <div class="node-tmpl" draggable="true" data-type="condition"    data-label="Condition">   <span class="nt-icon">🔀</span>Condition</div>
+            <div class="node-tmpl" draggable="true" data-type="set_variable" data-label="Set Variable"><span class="nt-icon">📝</span>Set Variable</div>
+            <div class="node-tmpl" draggable="true" data-type="transform"    data-label="Transform">   <span class="nt-icon">⚙️</span>Transform</div>
+            <div class="node-tmpl" draggable="true" data-type="delay"        data-label="Delay">       <span class="nt-icon">⏱️</span>Delay</div>
+
+            <h6>Data</h6>
+            <div class="node-tmpl" draggable="true" data-type="query_db"     data-label="Query DB">    <span class="nt-icon">🗄️</span>Query DB</div>
+            <div class="node-tmpl" draggable="true" data-type="http_request" data-label="HTTP Request"><span class="nt-icon">🌐</span>HTTP Request</div>
+
+            <h6>Actions / Export</h6>
+            <div class="node-tmpl" draggable="true" data-type="email_send"   data-label="Send Email">  <span class="nt-icon">✉️</span>Send Email</div>
+            <div class="node-tmpl" draggable="true" data-type="db_write"     data-label="DB Write">    <span class="nt-icon">💾</span>DB Write</div>
+            <div class="node-tmpl" draggable="true" data-type="file_write"   data-label="File Write">  <span class="nt-icon">📥</span>File Write</div>
+            <div class="node-tmpl" draggable="true" data-type="output"       data-label="Output">      <span class="nt-icon">📤</span>Output</div>
+
+            <h6>AI & Human</h6>
+            <div class="node-tmpl" draggable="true" data-type="agent"        data-label="AI Agent">    <span class="nt-icon">🤖</span>AI Agent</div>
+            {% if approval_enabled %}<div class="node-tmpl" draggable="true" data-type="approval"     data-label="Approval">    <span class="nt-icon">✅</span>Approval</div>{% endif %}
+
+            <h6 id="paletteAgentsHeader" style="margin-top:12px;">Quick-Add Agents</h6>
+            <div id="paletteAgents"><div class="text-muted" style="font-size:.72rem;padding:4px;">Loading…</div></div>
+        </div>
+
+        <!-- CENTER: Canvas -->
+        <div class="wf-canvas" id="wfCanvas">
+            <div class="wf-toolbar">
+                <button class="btn btn-sm btn-light border" onclick="WFBuilder.autoLayout()" title="Auto-layout">
+                    <i class="fas fa-th me-1"></i>Layout
+                </button>
+                <button class="btn btn-sm btn-light border" onclick="WFBuilder.clearCanvas()" title="Clear all">
+                    <i class="fas fa-trash me-1"></i>Clear
+                </button>
+            </div>
+            <div class="wf-canvas-inner" id="wfCanvasInner">
+                <svg id="edgeSvg"></svg>
+                <div id="wfNodesContainer"></div>
+                <svg id="wfConnectingLine" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"></svg>
+            </div>
+            <div id="wfCanvasHint" style="position:absolute;inset:0;display:flex;align-items:center;
+                 justify-content:center;pointer-events:none;flex-direction:column;gap:10px;color:#a89b9d;">
+                <i class="fas fa-project-diagram fa-3x opacity-25"></i>
+                <div style="font-size:.85rem;">Drag nodes from the left panel to build your workflow</div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Properties + Variables + Log -->
+        <div class="wf-props" id="wfProps">
+            <div class="wf-props-section">Properties</div>
+            <div id="nodePropsPanel">
+                <div class="text-muted" style="font-size:.78rem;text-align:center;padding:16px 6px;">
+                    <i class="fas fa-mouse-pointer fa-lg mb-2 d-block opacity-50"></i>
+                    Click a node to edit
+                </div>
+            </div>
+
+            <div class="wf-props-section">Workflow Variables</div>
+            <div id="wfVarsPanel" style="margin-bottom:8px;">
+                <div class="text-muted" style="font-size:.72rem;padding:4px;">
+                    Add <em>output_var</em> to nodes to create variables.
+                </div>
+            </div>
+
+            <div class="wf-props-section">Run Log</div>
+            <div class="wf-run-log" id="wfRunLog">Ready.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Create Workflow Modal ──────────────────────────────────────────────── -->
+<div class="modal fade" id="createWfModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>New Workflow</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="newWfName" placeholder="My Workflow" autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" id="newWfDesc" rows="2" placeholder="What this workflow does…"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Execution Mode</label>
+                    <select class="form-select" id="newWfMode">
+                        <option value="sequential">Sequential — nodes run one after another</option>
+                        <option value="parallel">Parallel — all agent nodes run simultaneously</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createAndOpenWorkflow()">
+                    <i class="fas fa-arrow-right me-1"></i>Create & Open Editor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Run Modal ──────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="runWfModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-play me-2 text-success"></i>Run Workflow</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label fw-semibold">Initial Input</label>
+                <p class="text-muted small mb-2">This becomes the <code>trigger_input</code> variable available in all nodes.</p>
+                <textarea class="form-control" id="runWfInput" rows="4"
+                          placeholder="Enter the initial input for this workflow run…"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="WFBuilder.run()">
+                    <i class="fas fa-play me-1"></i>Start Run
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% raw %}
+<script>
+'use strict';
+
+// Jinja2-safe helper: builds {{name}} strings without triggering Jinja2 parsing
+const wfV = n => '{{' + n + '}}';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Global state
+// ═══════════════════════════════════════════════════════════════════════════
+let _wfList       = [];
+let _allAgents    = [];
+let _allUsers     = [];
+let _allConns     = [];   // DB connections for query_db nodes
+
+// ── Node configuration ────────────────────────────────────────────────────
+const NODE_CFG = {
+    trigger:      { icon: '▶',  color: '#10b981', label: 'Trigger' },
+    agent:        { icon: '🤖', color: '#6366f1', label: 'AI Agent' },
+    query_db:     { icon: '🗄️', color: '#A22E57', label: 'Query DB' },
+    condition:    { icon: '🔀', color: '#f59e0b', label: 'Condition', multiOut: true },
+    transform:    { icon: '⚙️', color: '#7c3aed', label: 'Transform' },
+    http_request: { icon: '🌐', color: '#0891b2', label: 'HTTP Request' },
+    set_variable: { icon: '📝', color: '#6e6265', label: 'Set Variable' },
+    delay:        { icon: '⏱️', color: '#8b5cf6', label: 'Delay' },
+    approval:     { icon: '✅', color: '#f59e0b', label: 'Approval' },
+    output:       { icon: '📤', color: '#ec4899', label: 'Output' },
+    // ── new nodes ───────────────────────────────────────────────────────────
+    // Sources
+    db_read:      { icon: '🗃️', color: '#6B2038', label: 'DB Read',   isSource: true },
+    file_read:    { icon: '📂', color: '#059669', label: 'File Read',  isSource: true },
+    email_read:   { icon: '📧', color: '#7c3aed', label: 'Email Read', isSource: true },
+    // Loop
+    loop_start:   { icon: '🔁', color: '#b45309', label: 'Loop Start', loopStart: true },
+    loop_end:     { icon: '⏹', color: '#b45309', label: 'Loop End' },
+    // Actions / outputs
+    email_send:   { icon: '✉️', color: '#dc2626', label: 'Send Email' },
+    db_write:     { icon: '💾', color: '#6B2038', label: 'DB Write'   },
+    file_write:   { icon: '📥', color: '#065f46', label: 'File Write'  },
+    // legacy aliases
+    input:        { icon: '▶',  color: '#10b981', label: 'Trigger' },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Workflow list
+// ─────────────────────────────────────────────────────────────────────────
+async function loadWfList() {
+    try {
+        const res = await fetch('/api/agenthub/workflows');
+        _wfList   = await res.json();
+        renderWfCards();
+    } catch {
+        document.getElementById('wfCardList').innerHTML =
+            '<div class="text-center py-4 text-danger">Failed to load workflows.</div>';
+    }
+}
+
+async function loadWfRuns() {
+    try {
+        const res  = await fetch('/api/agenthub/workflows/runs');
+        const runs = await res.json();
+        const el   = document.getElementById('wfRunsList');
+        if (!runs.length) {
+            el.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:.85rem;">No runs yet.</div>';
+            return;
+        }
+        const SC = { completed:'success', waiting_approval:'warning', failed:'danger', running:'primary' };
+        el.innerHTML = `<div class="agent-card"><div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light"><tr>
+                <th>Run ID</th><th>Workflow</th><th>Status</th><th>Started</th>
+              </tr></thead>
+              <tbody>${runs.map(r => `<tr>
+                  <td><code style="font-size:.72rem;">${esc(r.id?.slice(0,8))}…</code></td>
+                  <td><small>${esc(r.workflow_id?.slice(0,8))}…</small></td>
+                  <td><span class="badge bg-${SC[r.status]||'secondary'}">${esc(r.status)}</span></td>
+                  <td class="text-muted small">${fmtDate(r.started_at)}</td>
+              </tr>`).join('')}</tbody>
+            </table></div></div>`;
+    } catch {}
+}
+
+function renderWfCards() {
+    const el = document.getElementById('wfCardList');
+    if (!_wfList.length) {
+        el.innerHTML = `<div class="text-center py-5 text-muted">
+            <i class="fas fa-project-diagram fa-3x mb-3 opacity-25"></i>
+            <p>No workflows yet. Click <strong>New Workflow</strong> to create one.</p></div>`;
+        return;
+    }
+    el.innerHTML = _wfList.map(wf => `
+    <div class="wf-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="wf-name">${esc(wf.name)}</div>
+                <div class="wf-desc">${esc(wf.description || '')}</div>
+                <div class="wf-meta">
+                    <span class="mode-badge ${wf.execution_mode}">${wf.execution_mode}</span>
+                    &nbsp; ${(wf.nodes||[]).length} nodes &nbsp;·&nbsp; ${wf.total_runs||0} runs
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="openBuilder('${wf.id}')">
+                    <i class="fas fa-edit me-1"></i>Edit
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteWf('${wf.id}','${esc(wf.name)}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>`).join('');
+}
+
+function showCreateModal() {
+    document.getElementById('newWfName').value = '';
+    document.getElementById('newWfDesc').value = '';
+    document.getElementById('newWfMode').value = 'sequential';
+    new bootstrap.Modal(document.getElementById('createWfModal')).show();
+}
+
+async function createAndOpenWorkflow() {
+    const name = document.getElementById('newWfName').value.trim();
+    if (!name) { alert('Name is required.'); return; }
+    const res = await fetch('/api/agenthub/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name,
+            description: document.getElementById('newWfDesc').value.trim(),
+            execution_mode: document.getElementById('newWfMode').value,
+            nodes: [], edges: []
+        })
+    });
+    const wf = await res.json();
+    bootstrap.Modal.getInstance(document.getElementById('createWfModal')).hide();
+    _wfList.push(wf);
+    await openBuilder(wf.id);
+}
+
+async function deleteWf(id, name) {
+    if (!confirm(`Delete workflow "${name}"?`)) return;
+    await fetch(`/api/agenthub/workflows/${id}`, { method: 'DELETE' });
+    _wfList = _wfList.filter(w => w.id !== id);
+    renderWfCards();
+}
+
+function closeBuilder() {
+    document.getElementById('wfBuilderView').style.display = 'none';
+    document.getElementById('wfListView').style.display    = '';
+    loadWfList();
+}
+
+function showRunModal() {
+    document.getElementById('runWfInput').value = '';
+    new bootstrap.Modal(document.getElementById('runWfModal')).show();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Open builder
+// ─────────────────────────────────────────────────────────────────────────
+async function openBuilder(wfId) {
+    const [wfRes, agRes, usrRes, connRes] = await Promise.all([
+        fetch(`/api/agenthub/workflows/${wfId}`),
+        fetch('/api/agenthub/agents/all'),
+        fetch('/api/agenthub/users'),
+        fetch('/api/agenthub/connections'),
+    ]);
+    const wf    = await wfRes.json();
+    _allAgents  = await agRes.json().catch(() => []);
+    _allUsers   = await usrRes.json().catch(() => []);
+    _allConns   = await connRes.json().catch(() => []);
+
+    document.getElementById('wfListView').style.display    = 'none';
+    document.getElementById('wfBuilderView').style.display = 'block';
+    document.getElementById('builderWfName').textContent   = wf.name;
+    document.getElementById('builderWfDesc').textContent   = wf.description || '';
+    document.getElementById('builderMode').value           = wf.execution_mode || 'sequential';
+
+    // Agent palette
+    const pa = document.getElementById('paletteAgents');
+    pa.innerHTML = _allAgents.length
+        ? _allAgents.map(a => `
+            <div class="node-tmpl" draggable="true"
+                 data-type="agent" data-label="${esc(a.name)}" data-agent-id="${a.id}">
+                <div style="width:17px;height:17px;border-radius:4px;background:${a.avatar_color||'#6366f1'};
+                            display:flex;align-items:center;justify-content:center;
+                            font-size:9px;font-weight:700;color:#fff;flex-shrink:0;">
+                    ${(a.name||'?')[0].toUpperCase()}
+                </div>
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.name)}</span>
+            </div>`).join('')
+        : '<div class="text-muted" style="font-size:.72rem;padding:4px;">No agents</div>';
+
+    WFBuilder.init(wf, _allAgents, _allUsers, _allConns);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WFBuilder — visual workflow editor
+// ═══════════════════════════════════════════════════════════════════════════
+const WFBuilder = {
+    workflow:    null,
+    nodes:       [],
+    edges:       [],
+    agents:      [],
+    users:       [],
+    conns:       [],
+    selected:    null,
+    connecting:  null,   // { fromNode, fromPort }
+
+    // ── Initialise ──────────────────────────────────────────────────────────
+
+    init(wf, agents, users, conns) {
+        this.workflow   = wf;
+        this.nodes      = (wf.nodes || []).map(n => ({ ...n }));
+        this.edges      = (wf.edges || []).map(e => ({ ...e }));
+        this.agents     = agents;
+        this.users      = users;
+        this.conns      = conns || [];
+        this.selected   = null;
+        this.connecting = null;
+
+        // Abort any previous canvas listeners so re-opening never stacks duplicates
+        if (this._canvasCtrl) this._canvasCtrl.abort();
+        this._canvasCtrl = new AbortController();
+
+        document.getElementById('wfNodesContainer').innerHTML = '';
+        document.getElementById('edgeSvg').innerHTML = '';
+        document.getElementById('wfConnectingLine').innerHTML = '';
+
+        this._initCanvas(this._canvasCtrl.signal);
+        this._renderAll();
+        this._selectNode(null);
+        this._updateVarsPanel();
+        document.getElementById('wfCanvasHint').style.display = this.nodes.length ? 'none' : '';
+    },
+
+    // ── Canvas event setup ──────────────────────────────────────────────────
+
+    _initCanvas(signal) {
+        const canvas = document.getElementById('wfCanvas');
+        const inner  = document.getElementById('wfCanvasInner');
+        const opt    = { signal };   // all listeners auto-removed when signal aborts
+
+        // Drag from palette — replace handlers on every init to pick up new agents
+        document.querySelectorAll('.node-tmpl').forEach(tmpl => {
+            tmpl.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('nodeType',    tmpl.dataset.type);
+                e.dataTransfer.setData('nodeLabel',   tmpl.dataset.label);
+                e.dataTransfer.setData('nodeAgentId', tmpl.dataset.agentId || '');
+            }, opt);
+        });
+
+        canvas.addEventListener('dragover', e => e.preventDefault(), opt);
+        canvas.addEventListener('drop', e => {
+            e.preventDefault();
+            const rect    = inner.getBoundingClientRect();
+            const type    = e.dataTransfer.getData('nodeType');
+            const label   = e.dataTransfer.getData('nodeLabel');
+            const agentId = e.dataTransfer.getData('nodeAgentId');
+            if (!type) return;
+            this._addNode({ type, label, agentId,
+                x: e.clientX - rect.left - 84,
+                y: e.clientY - rect.top  - 32 });
+        }, opt);
+
+        // Deselect on empty canvas click
+        canvas.addEventListener('mousedown', e => {
+            if (e.target === canvas || e.target === inner ||
+                e.target.id === 'edgeSvg' || e.target.id === 'wfConnectingLine' ||
+                e.target === document.getElementById('wfNodesContainer'))
+                this._selectNode(null);
+        }, opt);
+
+        // Live connecting wire while dragging from a port
+        inner.addEventListener('mousemove', e => {
+            if (!this.connecting) return;
+            const iRect  = inner.getBoundingClientRect();
+            const fromEl = document.getElementById(`wfn-${this.connecting.fromNode}`);
+            if (!fromEl) return;
+            const portEl = fromEl.querySelector(`[data-port="${this.connecting.fromPort}"]`);
+            const pR     = portEl ? portEl.getBoundingClientRect() : fromEl.getBoundingClientRect();
+            const x1 = (portEl ? pR.left + pR.width / 2 : pR.right) - iRect.left;
+            const y1 = pR.top + pR.height / 2 - iRect.top;
+            const x2 = e.clientX - iRect.left;
+            const y2 = e.clientY - iRect.top;
+            const cp = Math.max(40, Math.abs(x2 - x1) * 0.5);
+            const col = this.connecting.fromPort === 'out_true'  ? '#16a34a'
+                      : this.connecting.fromPort === 'out_false' ? '#dc2626'
+                      : '#6366f1';
+            document.getElementById('wfConnectingLine').innerHTML =
+                `<path d="M ${x1} ${y1} C ${x1+cp} ${y1}, ${x2-cp} ${y2}, ${x2} ${y2}"
+                      fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="6,3" opacity=".7"/>`;
+        }, opt);
+
+        // Cancel connecting only when releasing on empty space (not on a port)
+        document.addEventListener('mouseup', e => {
+            if (!this.connecting) return;
+            if (e.target && e.target.classList && e.target.classList.contains('wf-port')) return;
+            this.connecting = null;
+            document.getElementById('wfConnectingLine').innerHTML = '';
+        }, opt);
+    },
+
+    // ── Node type defaults ──────────────────────────────────────────────────
+
+    _nodeDefaults(type, agentId, label) {
+        const base = { type, label: label || NODE_CFG[type]?.label || type };
+        const defs = {
+            // ── Sources ────────────────────────────────────────────────────────
+            trigger:      { output_var: 'trigger_input' },
+            db_read:      { connection_name: this.conns[0]?.name || '',
+                            query: 'SELECT TOP 100 * FROM ', output_var: 'db_rows' },
+            file_read:    { file_path: '', file_format: 'excel', sheet_name: '',
+                            output_var: 'file_rows' },
+            email_read:   { imap_host: '', imap_port: '993', imap_user: '', imap_pass: '',
+                            folder: 'INBOX', filter_unread: true, max_emails: 10,
+                            output_var: 'emails' },
+            // ── Loop ───────────────────────────────────────────────────────────
+            loop_start:   { loop_var: '', item_var: 'loop_item', index_var: 'loop_index',
+                            result_var: 'loop_results' },
+            loop_end:     {},
+            // ── Logic ──────────────────────────────────────────────────────────
+            agent:        { agent_id: agentId || null, question: '', output_var: '' },
+            query_db:     { connection_name: this.conns[0]?.name || '',
+                            query: 'SELECT TOP 10 * FROM ', output_var: 'query_result' },
+            condition:    { expression: '' },
+            transform:    { expression: '{{trigger_input}}', output_var: 'transform_result' },
+            http_request: { url: '', method: 'GET', headers: '{}', body: '', output_var: 'http_result' },
+            set_variable: { var_name: '', value: '' },
+            delay:        { delay_seconds: 2 },
+            // ── Actions ────────────────────────────────────────────────────────
+            email_send:   { to: '', cc: '', subject: '', body: '', is_html: false },
+            db_write:     { connection_name: this.conns[0]?.name || '', table_name: '',
+                            operation: 'INSERT',
+                            field_mapping: [{ column: '', value: '' }],
+                            where_clause: '' },
+            file_write:   { file_path: '', file_format: 'excel', sheet_name: 'Sheet1',
+                            data_var: '', column_mapping: [{ column: '', field: '' }] },
+            approval:     { approval_title: '', approval_context: '', assigned_to_user_id: null },
+            output:       { display_var: '' },
+            input:        { output_var: 'trigger_input' },
+        };
+        return { ...base, ...(defs[type] || {}) };
+    },
+
+    // ── Add a node ──────────────────────────────────────────────────────────
+
+    _addNode(opts) {
+        const id   = `n_${Date.now()}`;
+        const node = {
+            id,
+            x: Math.max(20, opts.x || 100),
+            y: Math.max(20, opts.y || 100),
+            ...this._nodeDefaults(opts.type || 'agent', opts.agentId, opts.label),
+        };
+        this.nodes.push(node);
+        this._renderNode(node);
+        this._selectNode(id);
+        this._updateVarsPanel();
+        document.getElementById('wfCanvasHint').style.display = 'none';
+    },
+
+    // ── Render a single node ────────────────────────────────────────────────
+
+    _renderNode(node) {
+        const container = document.getElementById('wfNodesContainer');
+        const cfg   = NODE_CFG[node.type] || NODE_CFG.agent;
+        const agent = node.agent_id ? this.agents.find(a => a.id === node.agent_id) : null;
+        const color = agent?.avatar_color || cfg.color;
+
+        // Build sub-text
+        let sub = '';
+        switch (node.type) {
+            case 'agent':        sub = agent ? agent.name : '— no agent —'; break;
+            case 'query_db':
+            case 'db_read':      sub = node.connection_name || '— no connection —'; break;
+            case 'condition':    sub = node.expression ? node.expression.slice(0,28)+'…' : 'expression…'; break;
+            case 'transform':    sub = (node.expression||'').slice(0,28); break;
+            case 'http_request': sub = [node.method||'GET', (node.url||'url…').slice(0,22)].join(' '); break;
+            case 'set_variable': sub = node.var_name ? `${node.var_name} = …` : '— set var —'; break;
+            case 'delay':        sub = `${node.delay_seconds||2}s`; break;
+            case 'approval':     sub = node.approval_title || 'Approval'; break;
+            case 'output':       sub = node.display_var ? wfV(node.display_var) : 'final output'; break;
+            case 'trigger':
+            case 'input':        sub = node.output_var ? '→ ' + wfV(node.output_var) : ''; break;
+            case 'file_read':    sub = node.file_path ? node.file_path.split(/[\\/]/).pop().slice(0,24) : '— no file —'; break;
+            case 'email_read':   sub = node.imap_host || '— no host —'; break;
+            case 'email_send':   sub = node.to ? 'To: '+String(node.to).slice(0,20) : '— no recipient —'; break;
+            case 'db_write':     sub = node.table_name ? `${node.operation||'INSERT'} → ${node.table_name}` : '— no table —'; break;
+            case 'file_write':   sub = node.file_path ? node.file_path.split(/[\\/]/).pop().slice(0,24) : '— no file —'; break;
+            case 'loop_start':   sub = node.loop_var ? wfV(node.loop_var) : '— pick list var —'; break;
+            case 'loop_end':     sub = 'end of loop body'; break;
+        }
+
+        const varBadge = node.output_var
+            ? `<div class="wf-node-var">→ ${wfV(esc(node.output_var))}</div>`
+            : (node.var_name ? `<div class="wf-node-var">${wfV(esc(node.var_name))}</div>` : '');
+
+        // Port HTML
+        const cfg_type   = NODE_CFG[node.type] || {};
+        const isCondition = node.type === 'condition';
+        const isLoopStart = node.type === 'loop_start';
+        const isLoopEnd   = node.type === 'loop_end';
+        const isSource    = cfg_type.isSource || node.type === 'trigger' || node.type === 'input';
+        const hasOutput   = node.type === 'output';
+
+        const inPort   = isSource ? '' :
+            `<div class="wf-port in"  data-node="${node.id}" data-port="in"   title="Input"></div>`;
+        let outPorts = '';
+        if (isCondition) {
+            outPorts = `
+                <div class="wf-port-label lbl-true">T</div>
+                <div class="wf-port-label lbl-false">F</div>
+                <div class="wf-port out-true"  data-node="${node.id}" data-port="out_true"  title="True branch"></div>
+                <div class="wf-port out-false" data-node="${node.id}" data-port="out_false" title="False branch"></div>`;
+        } else if (isLoopStart) {
+            outPorts = `
+                <div class="wf-port-label lbl-body">B</div>
+                <div class="wf-port-label lbl-done">D</div>
+                <div class="wf-port loop-body" data-node="${node.id}" data-port="loop_body" title="Loop body (iterates)"></div>
+                <div class="wf-port loop-done" data-node="${node.id}" data-port="loop_done" title="After loop done"></div>`;
+        } else if (!hasOutput && !isLoopEnd) {
+            outPorts = `<div class="wf-port out" data-node="${node.id}" data-port="out" title="Output"></div>`;
+        }
+
+        const el = document.createElement('div');
+        el.className = 'wf-node';
+        el.id        = `wfn-${node.id}`;
+        el.style.cssText = `left:${node.x}px;top:${node.y}px;`;
+        el.innerHTML = `
+            ${inPort}
+            <div class="wf-node-header">
+                <div class="wf-node-icon">${cfg.icon}</div>
+                <div style="min-width:0;flex:1;">
+                    <div class="wf-node-label">${esc(node.label)}</div>
+                    ${sub ? `<div class="wf-node-sub" title="${esc(sub)}">${esc(sub)}</div>` : ''}
+                    ${varBadge}
+                </div>
+            </div>
+            <div style="width:100%;height:3px;border-radius:2px;background:${color};margin-top:7px;opacity:.45;"></div>
+            ${outPorts}`;
+
+        // Node drag
+        let sx, sy, snx, sny;
+        el.addEventListener('mousedown', e => {
+            if (e.target.classList.contains('wf-port') ||
+                e.target.classList.contains('wf-port-label')) return;
+            e.preventDefault();
+            this._selectNode(node.id);
+            sx = e.clientX; sy = e.clientY; snx = node.x; sny = node.y;
+            const onMove = ev => {
+                node.x = snx + ev.clientX - sx;
+                node.y = sny + ev.clientY - sy;
+                el.style.left = node.x + 'px';
+                el.style.top  = node.y + 'px';
+                this._renderEdges();
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // Port connections
+        // OUT ports: start connecting on mousedown (drag begins)
+        // IN ports:  complete connecting on mouseup so the document-level cancel doesn't win
+        el.querySelectorAll('.wf-port').forEach(port => {
+            const pname = port.dataset.port;
+
+            if (pname !== 'in') {
+                // Starting a connection from an output port
+                port.addEventListener('mousedown', e => {
+                    e.stopPropagation(); e.preventDefault();
+                    this.connecting = { fromNode: node.id, fromPort: pname };
+                });
+            } else {
+                // Completing a connection on an input port (mouseup fires before document mouseup)
+                port.addEventListener('mouseup', e => {
+                    e.stopPropagation();   // prevents document mouseup from clearing connecting
+                    if (!this.connecting) return;
+                    const { fromNode, fromPort } = this.connecting;
+                    const to = node.id;
+                    if (fromNode !== to &&
+                        !this.edges.find(ed => ed.source === fromNode &&
+                                               ed.target === to &&
+                                               ed.source_port === fromPort)) {
+                        this.edges.push({
+                            id: `e_${Date.now()}`,
+                            source: fromNode,
+                            source_port: fromPort || 'out',
+                            target: to,
+                        });
+                        this._renderEdges();
+                    }
+                    this.connecting = null;
+                    document.getElementById('wfConnectingLine').innerHTML = '';
+                });
+            }
+        });
+
+        container.appendChild(el);
+    },
+
+    // ── Render all nodes ────────────────────────────────────────────────────
+
+    _renderAll() {
+        document.getElementById('wfNodesContainer').innerHTML = '';
+        this.nodes.forEach(n => this._renderNode(n));
+        this._renderEdges();
+    },
+
+    // ── Render edges ────────────────────────────────────────────────────────
+
+    _getPortPos(nodeEl, portName, iRect) {
+        const p = nodeEl.querySelector(`[data-port="${portName}"]`);
+        if (p) {
+            const r = p.getBoundingClientRect();
+            return { x: r.left + r.width/2 - iRect.left, y: r.top + r.height/2 - iRect.top };
+        }
+        const r = nodeEl.getBoundingClientRect();
+        const out = portName !== 'in';
+        return { x: (out ? r.right : r.left) - iRect.left, y: r.top + r.height/2 - iRect.top };
+    },
+
+    _renderEdges() {
+        const svg   = document.getElementById('edgeSvg');
+        const inner = document.getElementById('wfCanvasInner');
+        svg.innerHTML = '';
+        const iRect = inner.getBoundingClientRect();
+
+        // Arrow markers
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        ['#6366f1', '#16a34a', '#dc2626'].forEach((col, i) => {
+            const id = `arr${i}`;
+            defs.innerHTML += `<marker id="${id}" markerWidth="8" markerHeight="8"
+                refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="${col}" opacity=".85"/></marker>`;
+        });
+        svg.appendChild(defs);
+
+        this.edges.forEach(edge => {
+            const fromEl = document.getElementById(`wfn-${edge.source}`);
+            const toEl   = document.getElementById(`wfn-${edge.target}`);
+            if (!fromEl || !toEl) return;
+
+            const srcPort = edge.source_port || 'out';
+            const p1  = this._getPortPos(fromEl, srcPort, iRect);
+            const p2  = this._getPortPos(toEl,   'in',    iRect);
+            const cp  = Math.max(40, Math.abs(p2.x - p1.x) * 0.5);
+
+            let col = '#6366f1', arrId = 'arr0', opacity = '0.55';
+            if (srcPort === 'out_true')  { col = '#16a34a'; arrId = 'arr1'; opacity = '0.7'; }
+            if (srcPort === 'out_false') { col = '#dc2626'; arrId = 'arr2'; opacity = '0.7'; }
+            if (srcPort === 'loop_body') { col = '#A22E57'; arrId = 'arr0'; opacity = '0.7'; }
+            if (srcPort === 'loop_done') { col = '#16a34a'; arrId = 'arr1'; opacity = '0.7'; }
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+cp} ${p1.y}, ${p2.x-cp} ${p2.y}, ${p2.x} ${p2.y}`);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', col);
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('opacity', opacity);
+            path.setAttribute('marker-end', `url(#${arrId})`);
+            path.style.pointerEvents = 'stroke';
+            path.style.cursor = 'pointer';
+            path.title = 'Click to remove';
+            path.addEventListener('click', () => {
+                this.edges = this.edges.filter(e => e !== edge);
+                this._renderEdges();
+            });
+            svg.appendChild(path);
+
+            // Edge label for true/false
+            if (['out_true','out_false','loop_body','loop_done'].includes(srcPort)) {
+                const mx = (p1.x + p2.x) / 2;
+                const my = (p1.y + p2.y) / 2 - 8;
+                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                txt.setAttribute('x', mx); txt.setAttribute('y', my);
+                txt.setAttribute('text-anchor', 'middle');
+                txt.setAttribute('font-size', '10'); txt.setAttribute('font-weight', '700');
+                txt.setAttribute('fill', col); txt.setAttribute('opacity', '0.9');
+                const labelMap = { out_true:'true', out_false:'false', loop_body:'body', loop_done:'done' };
+                txt.textContent = labelMap[srcPort] || srcPort;
+                svg.appendChild(txt);
+            }
+        });
+    },
+
+    // ── Select & properties ─────────────────────────────────────────────────
+
+    _selectNode(nodeId) {
+        this.selected = nodeId;
+        document.querySelectorAll('.wf-node').forEach(el => el.classList.remove('selected'));
+        if (nodeId) {
+            document.getElementById(`wfn-${nodeId}`)?.classList.add('selected');
+            this._renderProps(nodeId);
+        } else {
+            document.getElementById('nodePropsPanel').innerHTML = `
+                <div class="text-muted" style="font-size:.78rem;text-align:center;padding:16px 6px;">
+                    <i class="fas fa-mouse-pointer fa-lg mb-2 d-block opacity-50"></i>
+                    Click a node to edit
+                </div>`;
+        }
+    },
+
+    // ── Variable hints helper ───────────────────────────────────────────────
+
+    _varHints(nodeId, propName) {
+        const vars = this._getAvailableVars(nodeId);
+        if (!vars.length) return '';
+        return `<div style="margin-top:4px;line-height:1.8;">
+            ${vars.map(v => `<span class="var-hint" onclick="WFBuilder._insertVar('${nodeId}','${propName}','${v}')" title="Insert ${wfV(v)}"
+                >${wfV(v)}</span>`).join('')}
+        </div>`;
+    },
+
+    _insertVar(nodeId, prop, varName) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const cur  = node[prop] || '';
+        node[prop] = cur + wfV(varName);
+        // Update the textarea/input
+        const inp = document.querySelector(`[data-prop="${prop}"][data-node="${nodeId}"]`);
+        if (inp) inp.value = node[prop];
+    },
+
+    // ── Properties panel ────────────────────────────────────────────────────
+
+    _renderProps(nodeId) {
+        const node  = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const panel = document.getElementById('nodePropsPanel');
+
+        const field = (label, prop, type='text', placeholder='', extra='') => `
+            <div class="mb-2">
+                <label class="form-label form-label-sm">${label}</label>
+                <input type="${type}" class="form-control form-control-sm"
+                       value="${esc(node[prop]||'')}" placeholder="${esc(placeholder)}"
+                       data-prop="${prop}" data-node="${nodeId}"
+                       oninput="WFBuilder._setProp('${nodeId}','${prop}',this.value)">
+                ${extra}
+            </div>`;
+
+        const textarea = (label, prop, rows=3, placeholder='', extra='') => `
+            <div class="mb-2">
+                <label class="form-label form-label-sm">${label}</label>
+                <textarea class="form-control form-control-sm" rows="${rows}"
+                          placeholder="${esc(placeholder)}"
+                          data-prop="${prop}" data-node="${nodeId}"
+                          oninput="WFBuilder._setProp('${nodeId}','${prop}',this.value)">${esc(node[prop]||'')}</textarea>
+                ${extra}
+            </div>`;
+
+        const outputVarField = () => field(
+            'Output Variable Name',
+            'output_var', 'text',
+            'e.g. query_result',
+            `<div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">
+              Reference as <code>${wfV(esc(node.output_var||'var_name'))}</code> in later nodes.
+            </div>`
+        );
+
+        let extra = '';
+
+        // ── TRIGGER ────────────────────────────────────────────────────────
+        if (node.type === 'trigger' || node.type === 'input') {
+            extra = `
+                ${field('Output Variable Name','output_var','text','e.g. trigger_input',
+                    `<div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">
+                      The workflow input will be stored in this variable.</div>`)}`;
+
+        // ── AGENT ──────────────────────────────────────────────────────────
+        } else if (node.type === 'agent') {
+            const agentOpts = this.agents.map(a =>
+                `<option value="${a.id}" ${node.agent_id===a.id?'selected':''}>${esc(a.name)}</option>`
+            ).join('');
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Agent <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','agent_id',this.value)">
+                        <option value="">— Select Agent —</option>
+                        ${agentOpts}
+                    </select>
+                </div>
+                ${textarea('Question / Prompt', 'question', 4,
+                    'What should the agent do? Use {{variable}} to reference earlier outputs.',
+                    this._varHints(nodeId, 'question'))}
+                ${outputVarField()}`;
+
+        // ── QUERY DB ───────────────────────────────────────────────────────
+        } else if (node.type === 'query_db') {
+            const connOpts = this.conns.map(c =>
+                `<option value="${esc(c.name)}" ${node.connection_name===c.name?'selected':''}
+                >${esc(c.name)} (${esc(c.type||'')})</option>`
+            ).join('');
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Database Connection <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','connection_name',this.value)">
+                        <option value="">— Select Connection —</option>
+                        ${connOpts}
+                    </select>
+                    ${!this.conns.length ? '<div class="text-warning" style="font-size:.7rem;margin-top:2px;">No connections configured. Go to Database Connections first.</div>' : ''}
+                </div>
+                ${textarea('SQL Query', 'query', 5,
+                    'SELECT * FROM table WHERE col = {{variable}}',
+                    this._varHints(nodeId, 'query'))}
+                ${outputVarField()}`;
+
+        // ── CONDITION ──────────────────────────────────────────────────────
+        } else if (node.type === 'condition') {
+            extra = `
+                ${textarea('Expression', 'expression', 3,
+                    '{{variable}} contains "error"',
+                    this._varHints(nodeId, 'expression'))}
+                <div style="font-size:.68rem;color:#6e6265;background:#f8f6f6;border:1px solid #e6dfe0;
+                            border-radius:6px;padding:8px;margin-bottom:8px;line-height:1.6;">
+                    <strong>Operators:</strong><br>
+                    <code>{{v}} contains "text"</code><br>
+                    <code>{{v}} equals "text"</code><br>
+                    <code>{{v}} not empty</code><br>
+                    <code>{{v}} starts with "x"</code><br>
+                    <code>{{v}} > 10</code> &nbsp; <code>{{v}} &lt; 100</code>
+                </div>
+                <div style="font-size:.68rem;color:#a89b9d;">
+                    <span style="color:#16a34a;font-weight:700;">T</span> port = true branch &nbsp;
+                    <span style="color:#dc2626;font-weight:700;">F</span> port = false branch
+                </div>`;
+
+        // ── TRANSFORM ─────────────────────────────────────────────────────
+        } else if (node.type === 'transform') {
+            extra = `
+                ${textarea('Expression / Template', 'expression', 4,
+                    '{{variable}} or compose text with multiple vars',
+                    this._varHints(nodeId, 'expression'))}
+                ${outputVarField()}`;
+
+        // ── HTTP REQUEST ──────────────────────────────────────────────────
+        } else if (node.type === 'http_request') {
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Method</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','method',this.value)">
+                        ${['GET','POST','PUT','PATCH','DELETE'].map(m =>
+                            `<option ${node.method===m?'selected':''}>${m}</option>`).join('')}
+                    </select>
+                </div>
+                ${field('URL','url','text','https://api.example.com/endpoint',
+                    this._varHints(nodeId,'url'))}
+                ${textarea('Headers (JSON)','headers',2,'{"Content-Type":"application/json"}')}
+                ${textarea('Body (JSON or text)','body',3,'{"key":"{{variable}}"}')}
+                ${outputVarField()}`;
+
+        // ── SET VARIABLE ──────────────────────────────────────────────────
+        } else if (node.type === 'set_variable') {
+            extra = `
+                ${field('Variable Name','var_name','text','my_variable')}
+                ${textarea('Value','value',3,'{{trigger_input}}',
+                    this._varHints(nodeId,'value'))}`;
+
+        // ── DELAY ─────────────────────────────────────────────────────────
+        } else if (node.type === 'delay') {
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Delay (seconds)</label>
+                    <input type="number" class="form-control form-control-sm"
+                           value="${node.delay_seconds||2}" min="1" max="300"
+                           oninput="WFBuilder._setProp('${nodeId}','delay_seconds',parseInt(this.value)||1)">
+                </div>`;
+
+        // ── APPROVAL ──────────────────────────────────────────────────────
+        } else if (node.type === 'approval') {
+            const userOpts = this.users.map(u =>
+                `<option value="${u.id}" ${node.assigned_to_user_id==u.id?'selected':''}
+                >${esc(u.username)} (${esc(u.role)})</option>`
+            ).join('');
+            extra = `
+                ${field('Approval Title','approval_title','text','Approve this action?')}
+                ${textarea('Context / Instructions','approval_context',3,
+                    'Describe what the approver needs to review. Use {{variable}} for context.',
+                    this._varHints(nodeId,'approval_context'))}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Assign To</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','assigned_to_user_id',this.value?parseInt(this.value):null)">
+                        <option value="">Any admin</option>
+                        ${userOpts}
+                    </select>
+                </div>`;
+
+        // ── OUTPUT ────────────────────────────────────────────────────────
+        } else if (node.type === 'output') {
+            const vars = this._getAvailableVars(nodeId);
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Variable to Display</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','display_var',this.value)">
+                        <option value="">Last node output</option>
+                        ${vars.map(v =>
+                            `<option value="${esc(v)}" ${node.display_var===v?'selected':''}
+                            >${wfV(esc(v))}</option>`).join('')}
+                    </select>
+                    <div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">
+                        Displays the selected variable in the run log as the final result.
+                    </div>
+                </div>`;
+
+        // ── DB READ (source) ────────────────────────────────────────────────
+        } else if (node.type === 'db_read') {
+            const connOpts = this.conns.map(c =>
+                `<option value="${esc(c.name)}" ${node.connection_name===c.name?'selected':''}
+                >${esc(c.name)} (${esc(c.type||'')})</option>`).join('');
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Connection <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','connection_name',this.value)">
+                        <option value="">— Select —</option>${connOpts}
+                    </select>
+                </div>
+                ${textarea('SQL Query','query',5,'SELECT * FROM table WHERE condition',
+                    this._varHints(nodeId,'query'))}
+                ${outputVarField()}`;
+
+        // ── FILE READ (source) ──────────────────────────────────────────────
+        } else if (node.type === 'file_read') {
+            extra = `
+                ${field('File Path','file_path','text','C:/data/report.xlsx or /uploads/data.csv')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Format</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','file_format',this.value)">
+                        ${['excel','csv','json'].map(f=>
+                            `<option ${node.file_format===f?'selected':''}>${f}</option>`).join('')}
+                    </select>
+                </div>
+                ${field('Sheet Name (Excel only)','sheet_name','text','Sheet1')}
+                ${outputVarField()}
+                <div style="font-size:.68rem;color:#6e6265;background:#f8f6f6;border:1px solid #e6dfe0;
+                            border-radius:6px;padding:7px;margin-bottom:8px;">
+                    Output is a JSON array of row objects. Each row's fields are accessible via
+                    <code>{{${esc(node.output_var||'file_rows')}}}</code> in a Loop Start node.
+                </div>`;
+
+        // ── EMAIL READ (source) ─────────────────────────────────────────────
+        } else if (node.type === 'email_read') {
+            extra = `
+                ${field('IMAP Host','imap_host','text','imap.gmail.com')}
+                ${field('IMAP Port','imap_port','text','993')}
+                ${field('Email / Username','imap_user','text','you@company.com')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Password / App Password</label>
+                    <input type="password" class="form-control form-control-sm"
+                           value="${esc(node.imap_pass||'')}"
+                           oninput="WFBuilder._setProp('${nodeId}','imap_pass',this.value)">
+                </div>
+                ${field('Folder','folder','text','INBOX')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Max Emails to Fetch</label>
+                    <input type="number" class="form-control form-control-sm"
+                           value="${node.max_emails||10}" min="1" max="500"
+                           oninput="WFBuilder._setProp('${nodeId}','max_emails',parseInt(this.value)||10)">
+                </div>
+                <div class="mb-2 form-check">
+                    <input type="checkbox" class="form-check-input" id="filter_unread_${nodeId}"
+                           ${node.filter_unread?'checked':''}
+                           onchange="WFBuilder._setProp('${nodeId}','filter_unread',this.checked)">
+                    <label class="form-check-label form-label-sm" for="filter_unread_${nodeId}">Unread only</label>
+                </div>
+                ${outputVarField()}
+                <div style="font-size:.68rem;color:#6e6265;background:#f8f6f6;border:1px solid #e6dfe0;
+                            border-radius:6px;padding:7px;">
+                    Each email object has: <code>from</code>, <code>to</code>, <code>subject</code>,
+                    <code>body</code>, <code>date</code>, <code>message_id</code>
+                </div>`;
+
+        // ── LOOP START ──────────────────────────────────────────────────────
+        } else if (node.type === 'loop_start') {
+            const vars = this._getAvailableVars(nodeId);
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">List Variable to Iterate <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','loop_var',this.value)">
+                        <option value="">— Select list variable —</option>
+                        ${vars.map(v => `<option value="${esc(v)}" ${node.loop_var===v?'selected':''}>${wfV(esc(v))}</option>`).join('')}
+                    </select>
+                    <div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">
+                        Must be a JSON array (e.g., from DB Read or File Read).
+                    </div>
+                </div>
+                ${field('Current Item Variable','item_var','text','loop_item',
+                    '<div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">Each iteration: access this item as <code>{{loop_item}}</code></div>')}
+                ${field('Index Variable','index_var','text','loop_index')}
+                ${field('Collected Results Variable','result_var','text','loop_results',
+                    '<div style="font-size:.65rem;color:#a89b9d;margin-top:2px;">After loop ends, all body outputs are collected here.</div>')}
+                <div style="font-size:.68rem;color:#6B2038;background:#F8E8EB;border:1px solid #E8B9C4;
+                            border-radius:6px;padding:8px;">
+                    <strong>B</strong> port → connect to loop body nodes<br>
+                    <strong>D</strong> port → connect to nodes that run AFTER the loop finishes
+                </div>`;
+
+        // ── LOOP END ────────────────────────────────────────────────────────
+        } else if (node.type === 'loop_end') {
+            extra = `
+                <div style="font-size:.75rem;color:#6e6265;padding:8px 0;">
+                    Marks the end of the loop body. Connect the last body node here.
+                    After all iterations complete, execution follows Loop Start's
+                    <strong>D</strong> (done) port.
+                </div>`;
+
+        // ── EMAIL SEND ──────────────────────────────────────────────────────
+        } else if (node.type === 'email_send') {
+            extra = `
+                ${field('To','to','text','recipient@company.com or {{variable}}',
+                    this._varHints(nodeId,'to'))}
+                ${field('CC','cc','text','cc@company.com (optional)',
+                    this._varHints(nodeId,'cc'))}
+                ${field('Subject','subject','text','Your subject here with {{variable}}',
+                    this._varHints(nodeId,'subject'))}
+                ${textarea('Body','body',6,
+                    'Dear {{loop_item.name}},\n\nYour report is ready:\n{{agent_reply}}',
+                    this._varHints(nodeId,'body'))}
+                <div class="mb-2 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_html_${nodeId}"
+                           ${node.is_html?'checked':''}
+                           onchange="WFBuilder._setProp('${nodeId}','is_html',this.checked)">
+                    <label class="form-check-label form-label-sm" for="is_html_${nodeId}">HTML body</label>
+                </div>
+                <div style="font-size:.68rem;color:#6e6265;background:#f8f6f6;border:1px solid #e6dfe0;
+                            border-radius:6px;padding:7px;">
+                    Uses <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_USER</code>,
+                    <code>SMTP_PASS</code>, <code>SMTP_FROM</code> environment variables.
+                </div>`;
+
+        // ── DB WRITE ────────────────────────────────────────────────────────
+        } else if (node.type === 'db_write') {
+            const connOpts = this.conns.map(c =>
+                `<option value="${esc(c.name)}" ${node.connection_name===c.name?'selected':''}
+                >${esc(c.name)}</option>`).join('');
+            const mapping = Array.isArray(node.field_mapping) ? node.field_mapping : [{ column:'', value:'' }];
+            extra = `
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Connection</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','connection_name',this.value)">
+                        <option value="">— Select —</option>${connOpts}
+                    </select>
+                </div>
+                ${field('Table Name','table_name','text','schema.TableName')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Operation</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','operation',this.value)">
+                        ${['INSERT','UPDATE','UPSERT'].map(op=>
+                            `<option ${node.operation===op?'selected':''}>${op}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Field Mapping</label>
+                    <div id="fm_${nodeId}">
+                        ${mapping.map((m,i) => `
+                        <div class="d-flex gap-1 mb-1">
+                            <input class="form-control form-control-sm" placeholder="column"
+                                   value="${esc(m.column||'')}"
+                                   oninput="WFBuilder._setFieldMap('${nodeId}',${i},'column',this.value)"
+                                   style="flex:1;">
+                            <input class="form-control form-control-sm" placeholder="{{variable}}"
+                                   value="${esc(m.value||'')}"
+                                   oninput="WFBuilder._setFieldMap('${nodeId}',${i},'value',this.value)"
+                                   style="flex:1.2;">
+                            <button class="btn btn-sm btn-outline-danger px-1"
+                                    onclick="WFBuilder._removeFieldMap('${nodeId}',${i})">×</button>
+                        </div>`).join('')}
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary w-100 mt-1"
+                            onclick="WFBuilder._addFieldMap('${nodeId}')">+ Add field</button>
+                </div>
+                ${textarea('WHERE clause (for UPDATE)','where_clause',2,
+                    'id = {{loop_item.id}}')}`;
+
+        // ── FILE WRITE ──────────────────────────────────────────────────────
+        } else if (node.type === 'file_write') {
+            const colMap = Array.isArray(node.column_mapping) ? node.column_mapping : [{ column:'', field:'' }];
+            extra = `
+                ${field('Output File Path','file_path','text','C:/output/report.xlsx')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Format</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','file_format',this.value)">
+                        ${['excel','csv'].map(f=>
+                            `<option ${node.file_format===f?'selected':''}>${f}</option>`).join('')}
+                    </select>
+                </div>
+                ${field('Sheet Name','sheet_name','text','Sheet1')}
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Data Variable (list to write)</label>
+                    <select class="form-select form-select-sm"
+                            onchange="WFBuilder._setProp('${nodeId}','data_var',this.value)">
+                        <option value="">Last output</option>
+                        ${this._getAvailableVars(nodeId).map(v=>
+                            `<option value="${esc(v)}" ${node.data_var===v?'selected':''}>${wfV(esc(v))}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label form-label-sm">Column Mapping</label>
+                    <div id="cm_${nodeId}">
+                        ${colMap.map((m,i) => `
+                        <div class="d-flex gap-1 mb-1">
+                            <input class="form-control form-control-sm" placeholder="Column Header"
+                                   value="${esc(m.column||'')}"
+                                   oninput="WFBuilder._setColMap('${nodeId}',${i},'column',this.value)"
+                                   style="flex:1;">
+                            <input class="form-control form-control-sm" placeholder="field or {{var}}"
+                                   value="${esc(m.field||'')}"
+                                   oninput="WFBuilder._setColMap('${nodeId}',${i},'field',this.value)"
+                                   style="flex:1;">
+                            <button class="btn btn-sm btn-outline-danger px-1"
+                                    onclick="WFBuilder._removeColMap('${nodeId}',${i})">×</button>
+                        </div>`).join('')}
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary w-100 mt-1"
+                            onclick="WFBuilder._addColMap('${nodeId}')">+ Add column</button>
+                </div>`;
+        }
+
+        panel.innerHTML = `
+            <div class="mb-2">
+                <label class="form-label form-label-sm">Label</label>
+                <input class="form-control form-control-sm" value="${esc(node.label)}"
+                       oninput="WFBuilder._setLabel('${nodeId}',this.value)">
+            </div>
+            <div class="mb-2">
+                <label class="form-label form-label-sm">Type</label>
+                <input class="form-control form-control-sm" value="${esc(node.type)}" disabled
+                       style="opacity:.5;font-family:monospace;font-size:.73rem;">
+            </div>
+            ${extra}
+            <button class="btn btn-sm btn-outline-danger w-100 mt-2"
+                    onclick="WFBuilder._deleteNode('${nodeId}')">
+                <i class="fas fa-trash me-1"></i>Delete Node
+            </button>`;
+    },
+
+    // ── Property mutations ──────────────────────────────────────────────────
+
+    _setLabel(nodeId, label) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        node.label = label;
+        const el = document.querySelector(`#wfn-${nodeId} .wf-node-label`);
+        if (el) el.textContent = label;
+    },
+
+    _setProp(nodeId, prop, value) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        node[prop] = value;
+        // Re-render node sub-text to reflect change
+        const sub = document.querySelector(`#wfn-${nodeId} .wf-node-sub`);
+        const varEl = document.querySelector(`#wfn-${nodeId} .wf-node-var`);
+        if (sub) {
+            let newSub = '';
+            switch (node.type) {
+                case 'agent':        newSub = this.agents.find(a=>a.id===node.agent_id)?.name || '— no agent —'; break;
+                case 'query_db':     newSub = node.connection_name || '— no connection —'; break;
+                case 'condition':    newSub = (node.expression||'expression…').slice(0,28); break;
+                case 'transform':    newSub = (node.expression||'').slice(0,28); break;
+                case 'http_request': newSub = [node.method||'GET', (node.url||'url…').slice(0,22)].join(' '); break;
+                case 'set_variable': newSub = node.var_name ? `${node.var_name} = …` : '— set var —'; break;
+                case 'delay':        newSub = `${node.delay_seconds||2}s`; break;
+                case 'approval':     newSub = node.approval_title || 'Approval'; break;
+                case 'output':       newSub = node.display_var ? wfV(node.display_var) : 'final output'; break;
+                case 'trigger':      newSub = node.output_var ? '→ ' + wfV(node.output_var) : ''; break;
+            }
+            sub.textContent = newSub;
+        }
+        if (varEl) {
+            if (node.output_var) varEl.textContent = '→ ' + wfV(node.output_var);
+            else if (node.var_name) varEl.textContent = wfV(node.var_name);
+            else varEl.textContent = '';
+        }
+        this._updateVarsPanel();
+    },
+
+    // ── Field / column mapping helpers ──────────────────────────────────────
+
+    _setFieldMap(nodeId, idx, key, value) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        if (!Array.isArray(node.field_mapping)) node.field_mapping = [];
+        if (!node.field_mapping[idx]) node.field_mapping[idx] = { column:'', value:'' };
+        node.field_mapping[idx][key] = value;
+    },
+    _addFieldMap(nodeId) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        if (!Array.isArray(node.field_mapping)) node.field_mapping = [];
+        node.field_mapping.push({ column:'', value:'' });
+        this._renderProps(nodeId);
+    },
+    _removeFieldMap(nodeId, idx) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node || !Array.isArray(node.field_mapping)) return;
+        node.field_mapping.splice(idx, 1);
+        this._renderProps(nodeId);
+    },
+    _setColMap(nodeId, idx, key, value) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        if (!Array.isArray(node.column_mapping)) node.column_mapping = [];
+        if (!node.column_mapping[idx]) node.column_mapping[idx] = { column:'', field:'' };
+        node.column_mapping[idx][key] = value;
+    },
+    _addColMap(nodeId) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        if (!Array.isArray(node.column_mapping)) node.column_mapping = [];
+        node.column_mapping.push({ column:'', field:'' });
+        this._renderProps(nodeId);
+    },
+    _removeColMap(nodeId, idx) {
+        const node = this.nodes.find(n => n.id === nodeId);
+        if (!node || !Array.isArray(node.column_mapping)) return;
+        node.column_mapping.splice(idx, 1);
+        this._renderProps(nodeId);
+    },
+
+    _deleteNode(nodeId) {
+        this.nodes = this.nodes.filter(n => n.id !== nodeId);
+        this.edges = this.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+        document.getElementById(`wfn-${nodeId}`)?.remove();
+        this._renderEdges();
+        this._selectNode(null);
+        this._updateVarsPanel();
+        if (!this.nodes.length)
+            document.getElementById('wfCanvasHint').style.display = '';
+    },
+
+    // ── Variables panel ─────────────────────────────────────────────────────
+
+    _getAvailableVars(excludeNodeId) {
+        const vars = [];
+        const seen = new Set();
+        // Always include trigger_input
+        if (!seen.has('trigger_input')) { vars.push('trigger_input'); seen.add('trigger_input'); }
+        for (const node of this.nodes) {
+            if (node.id === excludeNodeId) continue;
+            const v = node.output_var || (node.type === 'set_variable' ? node.var_name : null);
+            if (v && v.trim() && !seen.has(v)) {
+                vars.push(v.trim()); seen.add(v.trim());
+            }
+        }
+        return vars;
+    },
+
+    _updateVarsPanel() {
+        const el   = document.getElementById('wfVarsPanel');
+        const vars = this._getAvailableVars(null);
+        if (!vars.length) {
+            el.innerHTML = '<div class="text-muted" style="font-size:.72rem;padding:4px;">No variables declared yet.</div>';
+            return;
+        }
+        el.innerHTML = vars.map(v => {
+            const src = this.nodes.find(n =>
+                n.output_var === v || (n.type==='set_variable' && n.var_name===v));
+            return `<div class="var-row">
+                <span class="var-name">${wfV(v)}</span>
+                <span class="var-from">${src ? esc(src.label) : 'system'}</span>
+            </div>`;
+        }).join('');
+    },
+
+    // ── Canvas utilities ─────────────────────────────────────────────────────
+
+    clearCanvas() {
+        if (this.nodes.length && !confirm('Clear all nodes?')) return;
+        this.nodes = []; this.edges = [];
+        document.getElementById('wfNodesContainer').innerHTML = '';
+        document.getElementById('edgeSvg').innerHTML = '';
+        this._selectNode(null);
+        this._updateVarsPanel();
+        document.getElementById('wfCanvasHint').style.display = '';
+    },
+
+    autoLayout() {
+        const order = this._topoSort();
+        const cols  = {};
+        order.forEach(id => {
+            const node = this.nodes.find(n => n.id === id);
+            if (!node) return;
+            const col = this._col(id);
+            cols[col] = (cols[col] || 0);
+            node.x = col * 220 + 40;
+            node.y = cols[col] * 130 + 40;
+            cols[col]++;
+        });
+        this._renderAll();
+    },
+    _col(id) {
+        const inc = this.edges.filter(e => e.target === id);
+        if (!inc.length) return 0;
+        return 1 + Math.max(...inc.map(e => this._col(e.source)));
+    },
+    _topoSort() {
+        const inDeg = {}, graph = {};
+        this.nodes.forEach(n => { inDeg[n.id] = 0; graph[n.id] = []; });
+        this.edges.forEach(e => {
+            graph[e.source]?.push(e.target);
+            inDeg[e.target] = (inDeg[e.target] || 0) + 1;
+        });
+        const q = this.nodes.filter(n => !inDeg[n.id]).map(n => n.id);
+        const r = [];
+        while (q.length) {
+            const id = q.shift(); r.push(id);
+            (graph[id]||[]).forEach(t => { if (!--inDeg[t]) q.push(t); });
+        }
+        return r;
+    },
+
+    // ── Save ────────────────────────────────────────────────────────────────
+
+    async save() {
+        const mode = document.getElementById('builderMode').value;
+        const res  = await fetch(`/api/agenthub/workflows/${this.workflow.id}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ nodes: this.nodes, edges: this.edges, execution_mode: mode }),
+        });
+        if (res.ok) showToastWf('Workflow saved ✓', 'success');
+        else        showToastWf('Save failed', 'danger');
+    },
+
+    // ── Run ─────────────────────────────────────────────────────────────────
+
+    async run() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('runWfModal'));
+        if (modal) modal.hide();
+
+        const input  = document.getElementById('runWfInput').value.trim() || 'Start workflow';
+        const logEl  = document.getElementById('wfRunLog');
+        const runBtn = document.getElementById('builderRunBtn');
+
+        // Cancel any running approval poll from a previous run
+        this._stopApprovalPoll();
+        this._pausedApprovalId = null;
+
+        logEl.innerHTML = '';
+        runBtn.disabled  = true;
+        runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Running…';
+
+        // Reset node states
+        this.nodes.forEach(n => {
+            document.getElementById(`wfn-${n.id}`)?.classList.remove(
+                'running','done','error','wf-paused','skipped');
+        });
+
+        const log = (msg, cls = 'log-info') => {
+            logEl.innerHTML += `<div class="${cls}">${esc(msg)}</div>`;
+            logEl.scrollTop  = logEl.scrollHeight;
+        };
+
+        await this.save();
+
+        try {
+            const resp = await fetch(`/api/agenthub/workflows/${this.workflow.id}/run`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ input }),
+            });
+            const reader  = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let   buf     = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const lines = buf.split('\n'); buf = lines.pop();
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try { this._handleChunk(JSON.parse(line), log); }
+                    catch {}
+                }
+            }
+        } catch (err) {
+            log('Connection error: ' + err.message, 'log-err');
+        }
+
+        runBtn.disabled  = false;
+        runBtn.innerHTML = '<i class="fas fa-play me-1"></i>Run';
+    },
+
+    // ── Stream chunk handler ─────────────────────────────────────────────────
+
+    // ── Approval polling + auto-resume ──────────────────────────────────────
+
+    _startApprovalPoll(approvalId, workflowId, log) {
+        // Cancel any existing poll first
+        this._stopApprovalPoll();
+        this._pollActive = true;
+        let attempts     = 0;
+        const maxAttempts = 120;   // ~10 minutes at 5s each
+
+        log(`  ⟳ Polling for approval decision every 5 seconds…`, 'log-dim');
+
+        // Use recursive setTimeout so the next tick never fires while the current one runs
+        const tick = async () => {
+            if (!this._pollActive) return;   // cancelled
+
+            attempts++;
+            if (attempts > maxAttempts) {
+                this._pollActive = false;
+                log('⏱ Timed out waiting for approval.', 'log-warn');
+                return;
+            }
+
+            try {
+                const res  = await fetch(`/api/agenthub/approvals/${approvalId}/status`);
+                const data = await res.json();
+
+                if (!this._pollActive) return;   // cancelled while awaiting fetch
+
+                if (data.status === 'pending') {
+                    // Still waiting — schedule next tick only after this one finishes
+                    this._pollTimer = setTimeout(tick, 5000);
+                    return;
+                }
+
+                // Resolved — stop polling, exactly once
+                this._pollActive = false;
+                this._pollTimer  = null;
+
+                if (data.status === 'approved' || data.status === 'rejected') {
+                    log(`✅ Approval ${data.status} — resuming workflow…`,
+                        data.status === 'approved' ? 'log-ok' : 'log-warn');
+                    await this._streamResume(approvalId, workflowId, log);
+                } else {
+                    log(`❓ Unknown approval status: ${data.status}`, 'log-warn');
+                }
+            } catch (_err) {
+                // Network blip — retry
+                if (this._pollActive) {
+                    this._pollTimer = setTimeout(tick, 5000);
+                }
+            }
+        };
+
+        this._pollTimer = setTimeout(tick, 5000);
+    },
+
+    _stopApprovalPoll() {
+        if (this._pollTimer) { clearTimeout(this._pollTimer); this._pollTimer = null; }
+        this._pollActive = false;
+    },
+
+    async _streamResume(approvalId, workflowId, log) {
+        const runBtn = document.getElementById('builderRunBtn');
+        if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Resuming…'; }
+
+        try {
+            const resp = await fetch(`/api/agenthub/workflows/${workflowId}/resume`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ approval_id: approvalId }),
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                log(`❌ Resume failed: ${err.error || resp.statusText}`, 'log-err');
+                return;
+            }
+
+            const reader  = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let   buf     = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const lines = buf.split('\n'); buf = lines.pop();
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try { this._handleChunk(JSON.parse(line), log); } catch {}
+                }
+            }
+        } catch (err) {
+            log(`❌ Resume connection error: ${err.message}`, 'log-err');
+        } finally {
+            if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<i class="fas fa-play me-1"></i>Run'; }
+        }
+    },
+
+    // ── Chunk handler ────────────────────────────────────────────────────────
+
+    _handleChunk(d, log) {
+        const nodeEl = d.node_id ? document.getElementById(`wfn-${d.node_id}`) : null;
+
+        switch (d.type) {
+            case 'wf_start':
+                log(`▶ Workflow started: ${d.workflow} (${d.nodes} nodes)`, 'log-info');
+                break;
+
+            case 'node_start':
+                log(`→ ${d.name || d.node_id} [${d.node_type}]`, 'log-warn');
+                if (nodeEl) { nodeEl.classList.remove('done','error','wf-paused','skipped'); nodeEl.classList.add('running'); }
+                break;
+
+            case 'node_complete':
+                log(`✓ ${d.node_id} done${d.output_preview ? ': ' + d.output_preview.slice(0,120) : ''}`, 'log-ok');
+                if (nodeEl) { nodeEl.classList.remove('running'); nodeEl.classList.add('done'); }
+                break;
+
+            case 'node_skipped':
+                log(`⤵ Skipped: ${d.node_id}`, 'log-dim');
+                if (nodeEl) { nodeEl.classList.remove('running'); nodeEl.classList.add('skipped'); }
+                break;
+
+            case 'condition_result':
+                log(`🔀 Condition → ${d.result ? 'TRUE ✓' : 'FALSE ✗'}`, d.result ? 'log-ok' : 'log-warn');
+                break;
+
+            case 'query_result':
+                if (d.error) log(`❌ DB error: ${d.error}`, 'log-err');
+                else         log(`🗄️ DB Query: ${d.count} row(s) returned`, 'log-ok');
+                break;
+
+            case 'file_read_result':
+                if (d.error) log(`❌ File read error: ${d.error}`, 'log-err');
+                else         log(`📂 File read: ${d.count} row(s)`, 'log-ok');
+                break;
+
+            case 'email_read_result':
+                if (d.error) log(`❌ Email read error: ${d.error}`, 'log-err');
+                else         log(`📧 Email read: ${d.count} email(s)`, 'log-ok');
+                break;
+
+            case 'email_send_result':
+                if (d.error) log(`❌ Email send error: ${d.error}`, 'log-err');
+                else         log(`✉️ Email sent → ${d.to}`, 'log-ok');
+                break;
+
+            case 'db_write_result':
+                if (d.error) log(`❌ DB write error: ${d.error}`, 'log-err');
+                else         log(`💾 DB write: ${d.rows_affected} row(s) affected`, 'log-ok');
+                break;
+
+            case 'file_write_result':
+                if (d.error) log(`❌ File write error: ${d.error}`, 'log-err');
+                else         log(`📥 File written: ${d.written} rows → ${d.file}`, 'log-ok');
+                break;
+
+            case 'loop_start':
+                log(`🔁 Loop started — ${d.total} items, item variable: {{${d.item_var}}}`, 'log-info');
+                break;
+
+            case 'loop_iter':
+                log(`  ↺ Iteration ${d.index + 1}/${d.total}`, 'log-dim');
+                break;
+
+            case 'loop_complete':
+                log(`🔁 Loop complete — ${d.iterations} iterations`, 'log-ok');
+                break;
+
+            case 'http_result':
+                if (d.error) log(`❌ HTTP error: ${d.error}`, 'log-err');
+                else         log(`🌐 HTTP ${d.status}`, d.status >= 200 && d.status < 300 ? 'log-ok' : 'log-warn');
+                break;
+
+            case 'approval_required':
+                log(`⏸ Approval required: ${d.title}`, 'log-warn');
+                if (nodeEl) { nodeEl.classList.remove('running'); nodeEl.classList.add('wf-paused'); }
+                break;
+
+            case 'wf_paused':
+                log(`⏸ Workflow paused — waiting for approval`, 'log-warn');
+                log(`  → Approve at: Agents Hub › Approvals`, 'log-dim');
+                // Store paused state and start polling
+                this._pausedApprovalId = d.approval_id;
+                this._pausedWorkflowId = d.workflow_id || this.workflow.id;
+                this._startApprovalPoll(d.approval_id, d.workflow_id || this.workflow.id, log);
+                break;
+
+            case 'wf_resumed':
+                log(`▶ Workflow resumed (${d.approved ? 'approved ✓' : 'rejected ✗'})`, d.approved ? 'log-ok' : 'log-warn');
+                if (!d.approved) log('  ↳ Workflow ended at rejection.', 'log-warn');
+                break;
+
+            case 'wf_complete':
+                log(`🏁 Workflow complete`, 'log-ok');
+                if (d.final_output)
+                    log(String(d.final_output).slice(0,400), 'log-info');
+                if (d.vars && Object.keys(d.vars).length) {
+                    log('Variables: ' + Object.entries(d.vars)
+                        .map(([k,v]) => `${k}=${String(v).slice(0,60)}`).join(', '), 'log-dim');
+                }
+                this.nodes.forEach(n => {
+                    const el = document.getElementById(`wfn-${n.id}`);
+                    if (el && !el.classList.contains('wf-paused') && !el.classList.contains('skipped'))
+                        el.classList.remove('running');
+                });
+                break;
+
+            case 'final':
+                log(`  ✅ ${String(d.content||'').slice(0,200)}`, 'log-ok');
+                break;
+
+            case 'tool_start':
+                log(`  🔧 ${d.tool}…`, 'log-dim');
+                break;
+
+            case 'approval_requested':
+                log(`  ✅ Approval requested`, 'log-warn');
+                break;
+
+            case 'error':
+                log(`❌ ${d.message || d.content}`, 'log-err');
+                if (nodeEl) { nodeEl.classList.remove('running'); nodeEl.classList.add('error'); }
+                break;
+        }
+    },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────
+function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(s) {
+    if (!s) return '—';
+    const d = new Date(s);
+    return isNaN(d) ? s
+        : d.toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric',
+                                     hour:'2-digit', minute:'2-digit'});
+}
+function showToastWf(msg, type) {
+    const t = document.createElement('div');
+    t.className = `alert alert-${type} position-fixed`;
+    t.style.cssText = 'bottom:20px;right:20px;z-index:9999;min-width:220px;padding:10px 16px;';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadWfList();
+});
+</script>
+{% endraw %}
+{% endblock %}

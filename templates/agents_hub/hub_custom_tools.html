@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Create Tool - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+.ct-layout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; }
+@media(max-width:900px){ .ct-layout{ grid-template-columns:1fr; } }
+
+/* ── Tool list ──────────────────────────────────────────────────────────────*/
+.ct-list-wrap { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; position:sticky; top:80px; }
+.ct-list-header { padding:14px 16px; border-bottom:1px solid #f2eeee; display:flex; align-items:center; justify-content:space-between; }
+.ct-list-header h6 { margin:0; font-size:.85rem; font-weight:700; color:#150f12; }
+.ct-tool-item { padding:12px 16px; border-bottom:1px solid #f8f6f6; cursor:pointer; transition:background .15s; display:flex; align-items:center; gap:10px; }
+.ct-tool-item:hover { background:#f8f6f6; }
+.ct-tool-item.active { background:#eef2ff; }
+.ct-tool-item .ct-icon { width:32px; height:32px; border-radius:8px; background:#f2eeee; display:flex; align-items:center; justify-content:center; font-size:.85rem; flex-shrink:0; }
+.ct-tool-item .ct-meta { flex:1; min-width:0; }
+.ct-tool-item .ct-name { font-size:.83rem; font-weight:600; color:#251e21; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ct-tool-item .ct-cat  { font-size:.72rem; color:#a89b9d; }
+.ct-empty { padding:32px 16px; text-align:center; color:#a89b9d; font-size:.85rem; }
+
+/* ── Form panel ─────────────────────────────────────────────────────────────*/
+.ct-panel { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); padding:24px; }
+.ct-section { margin-bottom:20px; }
+.ct-section-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#a89b9d; margin-bottom:8px; }
+
+/* ── Code editors ───────────────────────────────────────────────────────────*/
+.code-editor {
+    font-family: 'Consolas','Fira Code','Courier New',monospace;
+    font-size: .82rem;
+    line-height: 1.6;
+    background: #150f12;
+    color: #e6dfe0;
+    border: 1px solid #251e21;
+    border-radius: 8px;
+    padding: 12px 14px;
+    resize: vertical;
+    width: 100%;
+    outline: none;
+    tab-size: 4;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+}
+.code-editor:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.code-editor::placeholder { color: #574c4f; }
+
+/* ── Schema builder ─────────────────────────────────────────────────────────*/
+.schema-row { display:grid; grid-template-columns:160px 110px 56px 1fr 32px; gap:6px; align-items:center; margin-bottom:6px; }
+.schema-row input, .schema-row select { font-size:.82rem; }
+.schema-row-head { display:grid; grid-template-columns:160px 110px 56px 1fr 32px; gap:6px; margin-bottom:4px; }
+.schema-row-head span { font-size:.72rem; font-weight:600; color:#6e6265; }
+
+/* ── Status badges ──────────────────────────────────────────────────────────*/
+.badge-enabled  { background:#dcfce7; color:#166534; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-disabled { background:#fee2e2; color:#991b1b; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+
+/* ── Install output ─────────────────────────────────────────────────────────*/
+#ctInstallOutput { background:#150f12; color:#a89b9d; border-radius:8px; padding:12px 14px; font-size:.78rem; font-family:monospace; max-height:180px; overflow-y:auto; display:none; white-space:pre-wrap; margin-top:10px; }
+
+/* ── Env var rows ───────────────────────────────────────────────────────────*/
+.env-row { display:grid; grid-template-columns:180px 1fr 32px; gap:6px; align-items:center; margin-bottom:6px; }
+.env-row input { font-size:.82rem; font-family:monospace; }
+
+/* ── Test result ────────────────────────────────────────────────────────────*/
+#ctTestResult { background:#150f12; color:#a89b9d; border-radius:8px; padding:12px 14px; font-size:.78rem; font-family:monospace; max-height:220px; overflow-y:auto; white-space:pre-wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-wrench me-2"></i>Create Tool</h2>
+        <p class="text-muted mb-0">Build custom Python tools and make them available to your agents</p>
+    </div>
+    <button class="btn btn-primary" onclick="ctNewTool()">
+        <i class="fas fa-plus me-2"></i>New Tool
+    </button>
+</div>
+
+<div class="ct-layout mt-3">
+
+    <!-- LEFT: Tool list -->
+    <div class="ct-list-wrap">
+        <div class="ct-list-header">
+            <h6><i class="fas fa-list me-1"></i>My Tools</h6>
+            <span id="ctToolCount" class="badge bg-secondary" style="font-size:.7rem;">0</span>
+        </div>
+        <div id="ctToolList">
+            <div class="ct-empty"><i class="fas fa-circle-notch fa-spin mb-2"></i><br>Loading…</div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Editor -->
+    <div class="ct-panel" id="ctEditorPanel">
+        <div id="ctPlaceholder" class="text-center py-5 text-muted">
+            <i class="fas fa-wrench fa-2x mb-3 d-block" style="color:#d3c6c8;"></i>
+            <p class="mb-1 fw-semibold">No tool selected</p>
+            <p class="small">Click <strong>+ New Tool</strong> to create one, or select a tool from the list.</p>
+        </div>
+
+        <div id="ctForm" style="display:none;">
+
+            <!-- Metadata row -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Tool Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="ctName" autocomplete="off"
+                           placeholder="e.g. fetch_weather" oninput="ctSlugify(this)">
+                    <div class="form-text">snake_case identifier used by agents</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Display Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="ctDisplayName" autocomplete="off"
+                           placeholder="e.g. Fetch Weather">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Category</label>
+                    <input type="text" class="form-control form-control-sm" id="ctCategory" autocomplete="off"
+                           placeholder="Custom" value="Custom">
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Description</label>
+                    <textarea class="form-control form-control-sm" id="ctDescription" rows="2"
+                              placeholder="What does this tool do? (shown to agents)"></textarea>
+                </div>
+            </div>
+
+            <!-- Pip packages -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-box-open me-1"></i>Pip Packages</div>
+                <textarea class="code-editor" id="ctPipPackages" rows="3"
+                          placeholder="requests&#10;pandas==2.0&#10;httpx>=0.24"></textarea>
+                <div class="d-flex gap-2 mt-2 align-items-center flex-wrap">
+                    <button class="btn btn-sm btn-outline-secondary" id="ctInstallBtn"
+                            onclick="ctInstallPackages()">
+                        <i class="fas fa-download me-1"></i>Install Packages
+                    </button>
+                    <span class="text-muted" style="font-size:.78rem;line-height:2;">One package per line · version specifiers supported</span>
+                </div>
+                <div id="ctVenvStatus" class="mt-2"></div>
+                <pre id="ctInstallOutput"></pre>
+            </div>
+
+            <!-- Imports -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-file-import me-1"></i>Imports</div>
+                <textarea class="code-editor" id="ctImports" rows="4"
+                          placeholder="import json&#10;import datetime&#10;from pathlib import Path"></textarea>
+            </div>
+
+            <!-- Function body -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-code me-1"></i>Function Body</div>
+                <div class="form-text mb-1">Define a function named <code>run(**kwargs)</code> — input parameters are passed as keyword arguments.</div>
+                <textarea class="code-editor" id="ctFunctionCode" rows="12"
+                          placeholder="def run(**kwargs):&#10;    # kwargs contains your input parameters&#10;    name = kwargs.get('name', 'World')&#10;    return f'Hello, {name}!'"></textarea>
+            </div>
+
+            <!-- Input schema -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-sliders-h me-1"></i>Input Parameters</div>
+                <div class="schema-row-head">
+                    <span>Name</span><span>Type</span><span>Req?</span><span>Description</span><span></span>
+                </div>
+                <div id="ctSchemaRows"></div>
+                <button class="btn btn-sm btn-outline-primary mt-1" onclick="ctAddSchemaRow()">
+                    <i class="fas fa-plus me-1"></i>Add Parameter
+                </button>
+            </div>
+
+            <!-- Output description -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-arrow-right me-1"></i>Output Description</div>
+                <input type="text" class="form-control form-control-sm" id="ctOutputDesc" autocomplete="off"
+                       placeholder="e.g. Returns a string greeting message">
+            </div>
+
+            <!-- Tool-level default environment variables -->
+            <div class="ct-section">
+                <div class="ct-section-label"><i class="fas fa-key me-1"></i>Default Environment Variables</div>
+                <div class="form-text mb-2">
+                    Available as <code>os.environ</code> inside this tool's function body.
+                    Agent-level vars override these defaults when the tool runs inside an agent.
+                </div>
+                <div id="ctEnvVarRows"></div>
+                <button class="btn btn-sm btn-outline-secondary mt-1" onclick="ctAddEnvVar()">
+                    <i class="fas fa-plus me-1"></i>Add Variable
+                </button>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="d-flex gap-2 flex-wrap align-items-center mt-4 pt-3 border-top">
+                <button class="btn btn-primary" id="ctSaveBtn" onclick="ctSaveTool()">
+                    <i class="fas fa-save me-2"></i>Save Tool
+                </button>
+                <button class="btn btn-outline-success" id="ctTestBtn" onclick="ctOpenTestModal()"
+                        style="display:none;">
+                    <i class="fas fa-play me-2"></i>Test
+                </button>
+                <button class="btn btn-outline-warning" id="ctToggleBtn" onclick="ctToggleTool()"
+                        style="display:none;">
+                    <i class="fas fa-toggle-off me-2"></i>Disable
+                </button>
+                <button class="btn btn-outline-danger ms-auto" id="ctDeleteBtn" onclick="ctDeleteTool()"
+                        style="display:none;">
+                    <i class="fas fa-trash me-2"></i>Delete
+                </button>
+            </div>
+
+            <div id="ctSaveMsg" class="mt-2" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Test Modal ─────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="ctTestModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-play me-2"></i>Test: <span id="ctTestModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ctTestInputs" class="mb-3"></div>
+                <div id="ctTestResultWrap" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="fw-semibold" style="font-size:.85rem;">Result</span>
+                        <span id="ctTestBadge"></span>
+                    </div>
+                    <pre id="ctTestResult"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button class="btn btn-success" id="ctRunTestBtn" onclick="ctRunTest()">
+                    <i class="fas fa-play me-2"></i>Run Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'custom-tools'; initHubPage();</script>
+{% endblock %}

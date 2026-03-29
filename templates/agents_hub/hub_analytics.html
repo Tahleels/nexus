@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Money - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+.analytics-card { background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px; }
+.analytics-card h6 { font-weight:600; color:#374151; margin-bottom:16px; }
+.bar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:.82rem; }
+.bar-row .label { width:140px; flex-shrink:0; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bar-track { flex:1; height:8px; background:#f2eeee; border-radius:4px; overflow:hidden; }
+.bar-fill { height:100%; border-radius:4px; transition:width .5s; }
+.bar-row .val { width:60px; text-align:right; color:#6e6265; flex-shrink:0; }
+.bar-row .cost { width:70px; text-align:right; color:#16a34a; flex-shrink:0; font-size:.75rem; font-weight:600; }
+.totals-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.tot-item { background:#f8f6f6; border-radius:8px; padding:14px; text-align:center; }
+.tot-item .n { font-size:1.5rem; font-weight:700; color:#251e21; }
+.tot-item .l { font-size:.75rem; color:#6e6265; margin-top:2px; }
+.tot-item.cost-item .n { color:#16a34a; }
+/* User usage table */
+.uu-table { width:100%; font-size:.82rem; border-collapse:collapse; }
+.uu-table th { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#6e6265; padding:4px 8px; border-bottom:1px solid #e6dfe0; text-align:left; font-weight:600; }
+.uu-table td { padding:7px 8px; border-bottom:1px solid #f2eeee; vertical-align:top; }
+.uu-table tr:last-child td { border-bottom:none; }
+.uu-user { font-weight:600; color:#251e21; }
+.uu-tokens { color:#6366f1; font-weight:600; }
+.uu-cost  { color:#16a34a; font-weight:700; }
+.uu-agents { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px; }
+.uu-agent-tag { background:#f2eeee; border-radius:4px; padding:2px 6px; font-size:.7rem; color:#574c4f; }
+.uu-agent-tag span { color:#6366f1; font-weight:600; }
+/* Dept filter bar */
+.analytics-filter-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-sack-dollar me-2"></i>Money</h2>
+        <p class="text-muted mb-0">Usage statistics, performance metrics and token costs</p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="initAnalytics()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Filter bar -->
+<div class="analytics-filter-bar mt-3">
+    <label class="text-muted" style="font-size:.82rem;font-weight:600;">Filter by:</label>
+    <select class="form-select form-select-sm" style="max-width:150px;" id="analytRangeFilter" onchange="onAnalytRangeChange()">
+        <option value="today">Today</option>
+        <option value="7d" selected>Last 7 Days</option>
+        <option value="all">All Time</option>
+    </select>
+    <label class="text-muted" style="font-size:.82rem;">or month:</label>
+    <input type="month" class="form-control form-control-sm" style="max-width:160px;" id="analytMonthFilter" onchange="onAnalytMonthChange()">
+    <select class="form-select form-select-sm" style="max-width:200px;" id="analytDeptFilter" onchange="initAnalytics()">
+        <option value="">All Departments</option>
+    </select>
+    <span id="analytFilterLabel" class="badge bg-light text-secondary" style="font-size:.72rem;display:none;"></span>
+</div>
+
+<div class="row g-3">
+    <!-- User Usage -->
+    <div class="col-md-6">
+        <div class="analytics-card" style="height:100%;">
+            <h6><i class="fas fa-users me-2 text-secondary"></i>User Usage <span id="analytUserUsageRange" class="text-muted fw-normal" style="font-size:.75rem;"></span></h6>
+            <div id="hubUserUsage">
+                <div class="text-center py-3 text-muted" style="font-size:.82rem;">Loading…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent performance (agentwise usage + cost) -->
+    <div class="col-md-6">
+        <div class="analytics-card" style="height:100%;">
+            <h6><i class="fas fa-robot me-2 text-info"></i>Agentwise Usage &amp; Cost</h6>
+            <div id="hubAgentStats">
+                <div class="text-center py-3 text-muted" style="font-size:.82rem;">Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <!-- Totals -->
+    <div class="col-md-6">
+        <div class="analytics-card">
+            <h6><i class="fas fa-calculator me-2 text-primary"></i>Totals</h6>
+            <div class="totals-grid" id="hubAnalyticsTotals">
+                <div class="tot-item"><div class="n skeleton">—</div><div class="l">Tokens</div></div>
+                <div class="tot-item"><div class="n skeleton">—</div><div class="l">Agent Runs</div></div>
+                <div class="tot-item"><div class="n skeleton">—</div><div class="l">WF Runs</div></div>
+                <div class="tot-item cost-item"><div class="n skeleton">—</div><div class="l">Est. Cost</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tool usage -->
+    <div class="col-md-6">
+        <div class="analytics-card">
+            <h6><i class="fas fa-tools me-2 text-success"></i>Tool Usage <span class="text-muted fw-normal" style="font-size:.75rem;">(all time)</span></h6>
+            <div id="hubToolStats">
+                <div class="text-center py-3 text-muted" style="font-size:.82rem;">Loading…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workflow run history -->
+    <div class="col-12">
+        <div class="analytics-card">
+            <h6><i class="fas fa-history me-2 text-warning"></i>Recent Workflow Runs</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Workflow</th>
+                            <th>Status</th>
+                            <th>Tokens</th>
+                            <th>Started</th>
+                            <th>Completed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hubWfRunsTable">
+                        <tr><td colspan="5" class="text-center py-3 text-muted">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>
+hubPage = 'analytics';
+
+// Load departments into filter
+(async function loadDepts() {
+    try {
+        const res   = await fetch('/api/agenthub/org/departments');
+        const depts = await res.json();
+        const sel   = document.getElementById('analytDeptFilter');
+        (depts || []).forEach(d => {
+            const o = document.createElement('option');
+            o.value = d.id; o.textContent = d.name;
+            sel.appendChild(o);
+        });
+    } catch {}
+})();
+
+// Cap the month picker at the current month — any past year/month is fair
+// game, but future months can't have usage data yet so the browser greys
+// them out.
+(function initMonthFilter() {
+    const input = document.getElementById('analytMonthFilter');
+    if (!input) return;
+    const now = new Date();
+    const y   = now.getFullYear();
+    const m   = String(now.getMonth() + 1).padStart(2, '0');
+    input.max = `${y}-${m}`;
+})();
+
+initHubPage();
+</script>
+{% endblock %}

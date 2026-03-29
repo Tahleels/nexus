@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Agents Management - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Env var rows ─────────────────────────────────────────── */
+.env-row { display:grid; grid-template-columns:180px 1fr 32px; gap:6px; align-items:center; margin-bottom:6px; }
+.env-row input { font-size:.82rem; font-family:monospace; }
+/* ── Agent cards ───────────────────────────────────────────── */
+.agent-card-hub {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, #e9ecef);
+    border-radius: 12px; padding: 20px;
+    box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,.06));
+    margin-bottom: 16px; display: flex; align-items: flex-start; gap: 16px;
+    transition: background-color .22s, border-color .22s;
+}
+.agent-card-hub .avatar { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:1.1rem; flex-shrink:0; }
+.agent-card-hub .info .name { font-weight:700; font-size:1rem; color: var(--text-1, #251e21); }
+.agent-card-hub .info .desc { font-size:.82rem; color: var(--text-2, #6e6265); margin-top:2px; }
+.agent-card-hub .meta { font-size:.75rem; color: var(--text-3, #a89b9d); margin-top:8px; }
+.agent-card-hub .meta span { margin-right:12px; }
+.tool-chip { display:inline-block; background: var(--bg-surface-2, #f2eeee); border-radius:20px; padding:2px 10px; font-size:.72rem; color: var(--text-2, #574c4f); margin:2px; }
+.status-badge { padding:3px 10px; border-radius:20px; font-size:.72rem; font-weight:600; }
+.status-badge.active { background: var(--success-bg, #dcfce7); color: var(--success-text, #166534); }
+.status-badge.inactive { background: var(--danger-bg, #fef2f2); color: var(--danger-text, #991b1b); }
+/* ── Tool config items ─────────────────────────────────────── */
+.tool-item { border-radius: 8px; padding: 6px 8px; transition: background .12s; }
+.tool-item:hover { background: var(--bg-surface-2, #f8f6f6); }
+.tool-item-label { cursor: pointer; margin-bottom: 0; display: flex; align-items: center; gap: 8px; }
+.tool-item-label:hover span:first-of-type { color: var(--accent, #6366f1); }
+.tool-cfg-panel {
+    background: var(--bg-surface-2, #f8f6f6);
+    border: 1px solid var(--card-border, #e9ecef);
+    border-radius: 6px; padding: 8px 12px;
+    transition: background-color .22s, border-color .22s;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-robot me-2"></i>Agents Management</h2>
+        <p class="text-muted mb-0">Create and manage orchestrated agents</p>
+    </div>
+    <button class="btn btn-primary" onclick="showCreateAgentModal()">
+        <i class="fas fa-plus me-2"></i>New Agent
+    </button>
+</div>
+
+<!-- Search + filter -->
+<div class="d-flex gap-2 mb-3">
+    <input type="text" class="form-control" style="max-width:300px;" id="agentSearch" placeholder="Search agents…" autocomplete="off" oninput="filterAgents()">
+    <select class="form-select" style="max-width:160px;" id="agentStatusFilter" onchange="filterAgents()">
+        <option value="">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+    </select>
+</div>
+
+<div id="hubAgentsList">
+    <div class="text-center py-5 text-muted"><div class="spinner-border mb-2"></div><p>Loading agents…</p></div>
+</div>
+
+<!-- Create/Edit Agent Modal -->
+<div class="modal fade" id="agentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="agentModalTitle">Create Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editAgentId">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" id="agentName" placeholder="My Agent" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Model <small class="text-muted fw-normal">(provider is inferred from the model)</small></label>
+                        <select class="form-select" id="agentModel" onchange="syncAgentProviderFromModel()">
+                            <optgroup label="OpenAI">
+                                <option value="gpt-4o" data-provider="openai">GPT-4o</option>
+                                <option value="gpt-4o-mini" data-provider="openai">GPT-4o mini</option>
+                                <option value="gpt-4.1" data-provider="openai">GPT-4.1</option>
+                                <option value="gpt-4.1-mini" data-provider="openai">GPT-4.1 mini</option>
+                                <option value="gpt-4.1-nano" data-provider="openai">GPT-4.1 nano</option>
+                                <option value="o4-mini" data-provider="openai">o4-mini (reasoning)</option>
+                            </optgroup>
+                            <optgroup label="Amazon Bedrock">
+                                <option value="anthropic.claude-sonnet-5" data-provider="bedrock">Claude Sonnet 5 (Bedrock)</option>
+                                <option value="anthropic.claude-opus-5" data-provider="bedrock">Claude Opus 5 (Bedrock)</option>
+                                <option value="anthropic.claude-haiku-4-5-20251001-v1:0" data-provider="bedrock">Claude Haiku 4.5 (Bedrock)</option>
+                                <option value="amazon.nova-2-lite-v1:0" data-provider="bedrock">Amazon Nova 2 Lite</option>
+                                <option value="mistral.mistral-large-3-675b-instruct" data-provider="bedrock">Mistral Large 3</option>
+                                <option value="qwen.qwen3-235b-a22b-2507-v1:0" data-provider="bedrock">Qwen3 235B</option>
+                            </optgroup>
+                        </select>
+                        <input type="hidden" id="agentProvider" value="openai">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" id="agentDesc" placeholder="Short description" autocomplete="off">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Objective</label>
+                        <input type="text" class="form-control" id="agentObjective" placeholder="What this agent aims to accomplish" autocomplete="off">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">System Prompt</label>
+                        <textarea class="form-control" id="agentSystemPrompt" rows="4" placeholder="Detailed instructions for this agent…"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Temperature <span id="tempVal">0.7</span></label>
+                        <input type="range" class="form-range" id="agentTemp" min="0" max="2" step="0.1" value="0.7"
+                            oninput="document.getElementById('tempVal').textContent=this.value">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Avatar Color</label>
+                        <input type="color" class="form-control form-control-color" id="agentColor" value="#6366f1">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Tools <small class="text-muted fw-normal">(select tools and configure their options)</small></label>
+                        <div id="toolCheckboxes" style="display:flex;flex-direction:column;gap:2px;max-height:340px;overflow-y:auto;border:1px solid var(--card-border,#e9ecef);border-radius:8px;padding:8px;">
+                            <div class="text-muted" style="font-size:.85rem;padding:4px;">Loading tools…</div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">
+                            Environment Variables
+                            <small class="text-muted fw-normal">(API keys &amp; secrets injected into this agent's tool calls)</small>
+                        </label>
+                        <div id="agentEnvVarRows" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="agentAddEnvVar()">
+                            <i class="fas fa-plus me-1"></i>Add Variable
+                        </button>
+                        <div class="form-text">Values stored in plaintext — accessible to dev/admin roles only.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="saveAgent()">Save Agent</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'agents'; initHubPage();</script>
+{% endblock %}

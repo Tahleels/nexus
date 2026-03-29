@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Agent Activity - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.aa-layout { display:grid; grid-template-columns:320px 1fr; gap:20px; align-items:start; height:calc(100vh - 180px); }
+@media(max-width:900px){ .aa-layout{ grid-template-columns:1fr; height:auto; } }
+
+/* ── Convo list ──────────────────────────────────────────────────────────── */
+.aa-list-wrap { background:var(--card-bg,#fff); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; display:flex; flex-direction:column; height:100%; }
+.aa-list-header { padding:12px 16px; border-bottom:1px solid var(--card-border,#f2eeee); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.aa-list-header h6 { margin:0; font-size:.85rem; font-weight:700; }
+.aa-list-scroll { overflow-y:auto; flex:1; }
+.aa-convo-item { padding:12px 16px; border-bottom:1px solid var(--card-border,#f8f6f6); cursor:pointer; transition:background .15s; }
+.aa-convo-item:hover { background:var(--bg-surface-2,#f8f6f6); }
+.aa-convo-item.active { background:var(--accent-bg,#eef2ff); }
+.aa-convo-title { font-size:.83rem; font-weight:600; color:var(--text-1,#251e21); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.aa-convo-sub { font-size:.72rem; color:var(--text-3,#a89b9d); margin-top:2px; display:flex; gap:8px; align-items:center; }
+
+/* ── Trace panel ─────────────────────────────────────────────────────────── */
+.aa-panel { background:var(--card-bg,#fff); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; display:flex; flex-direction:column; height:100%; }
+.aa-panel-header { padding:14px 18px; border-bottom:1px solid var(--card-border,#e9ecef); flex-shrink:0; }
+.aa-panel-scroll { overflow-y:auto; flex:1; padding:16px 18px; }
+
+/* ── Turn blocks ─────────────────────────────────────────────────────────── */
+.aa-turn { margin-bottom:20px; }
+.aa-turn-user { background:var(--bg-surface-2,#f8f6f6); border-radius:10px; padding:10px 14px; font-size:.85rem; color:var(--text-1,#251e21); margin-bottom:8px; }
+.aa-turn-user .aa-role { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3,#a89b9d); margin-bottom:4px; }
+
+/* ── Tool trace ──────────────────────────────────────────────────────────── */
+.aa-tool-trace { margin-bottom:8px; }
+.aa-tool-chip { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px 8px 0 0; font-size:.78rem; font-weight:600; cursor:pointer; user-select:none; }
+.aa-tool-chip.success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.aa-tool-chip.error   { background:#fef2f2; border:1px solid #fecaca; color:#991b1b; }
+.aa-tool-chip .aa-tc-time { font-size:.7rem; font-weight:400; color:#6e6265; margin-left:auto; }
+.aa-tool-chip .aa-tc-chev { font-size:.65rem; color:#a89b9d; transition:transform .2s; }
+.aa-tool-detail { background:#150f12; border-radius:0 0 8px 8px; border:1px solid #251e21; border-top:none; display:none; }
+.aa-tool-detail.open { display:block; }
+.aa-tc-cols { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+.aa-tc-col { padding:10px 14px; }
+.aa-tc-col:first-child { border-right:1px solid #251e21; }
+.aa-tc-col-label { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#6e6265; margin-bottom:6px; }
+.aa-tc-pre { color:#e6dfe0; font-size:.72rem; font-family:monospace; max-height:200px; overflow-y:auto; margin:0; white-space:pre-wrap; word-break:break-all; }
+
+/* ── Assistant reply ─────────────────────────────────────────────────────── */
+.aa-reply { background:var(--card-bg,#fff); border:1px solid var(--card-border,#e9ecef); border-radius:10px; padding:12px 14px; font-size:.85rem; color:var(--text-1,#251e21); }
+.aa-reply .aa-role { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3,#a89b9d); margin-bottom:4px; }
+.aa-reply-meta { font-size:.72rem; color:var(--text-3,#a89b9d); margin-top:6px; display:flex; gap:12px; }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.aa-filters { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+
+/* ── Empty / placeholder ─────────────────────────────────────────────────── */
+.aa-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-3,#a89b9d); text-align:center; padding:40px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-microscope me-2"></i>Agent Activity</h2>
+        <p class="text-muted mb-0">Full tool execution trace for every agent conversation</p>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="aaRefresh()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="aa-filters mt-3">
+    <select class="form-select form-select-sm" style="max-width:180px;" id="aaDeptFilter" onchange="aaOnDeptChange()">
+        <option value="">All Departments</option>
+    </select>
+    <select class="form-select form-select-sm" style="max-width:200px;" id="aaAgentFilter" onchange="aaLoadConvos()">
+        <option value="">All Agents</option>
+    </select>
+    <select class="form-select form-select-sm" style="max-width:160px;" id="aaToolFilter" onchange="aaFilterConvos()">
+        <option value="">Any Tool Used</option>
+        <option value="has_tools">Has Tool Calls</option>
+        <option value="no_tools">No Tool Calls</option>
+    </select>
+    <input type="text" class="form-control form-control-sm" style="max-width:220px;"
+           id="aaSearch" placeholder="Search conversations…" autocomplete="off" oninput="aaFilterConvos()">
+    <span id="aaConvoCount" class="text-muted ms-auto" style="font-size:.75rem;"></span>
+</div>
+
+<div class="aa-layout">
+    <!-- LEFT: Conversation list -->
+    <div class="aa-list-wrap">
+        <div class="aa-list-header">
+            <h6><i class="fas fa-comments me-1"></i>Conversations</h6>
+            <span id="aaListCount" class="badge bg-secondary" style="font-size:.7rem;">0</span>
+        </div>
+        <div class="aa-list-scroll" id="aaConvoList">
+            <div style="padding:32px;text-align:center;color:var(--text-3,#a89b9d);">
+                <div class="spinner-border spinner-border-sm mb-2"></div><br>Loading…
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Trace panel -->
+    <div class="aa-panel">
+        <div class="aa-panel-header" id="aaPanelHeader" style="display:none;">
+            <div class="fw-semibold" id="aaPanelTitle" style="font-size:.92rem;"></div>
+            <div class="text-muted mt-1" style="font-size:.75rem;" id="aaPanelMeta"></div>
+        </div>
+        <div class="aa-panel-scroll" id="aaPanelBody">
+            <div class="aa-placeholder">
+                <i class="fas fa-microscope fa-2x mb-3" style="color:#d3c6c8;"></i>
+                <p class="fw-semibold mb-1">No conversation selected</p>
+                <p class="small">Select a conversation from the list to view its full tool execution trace.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>
+'use strict';
+let _aaConvos    = [];
+let _aaFiltered  = [];
+let _aaActiveId  = null;
+let _aaAllAgents = [];
+
+async function aaInit() {
+    await Promise.all([aaLoadDepts(), aaLoadAgents()]);
+    await aaLoadConvos();
+}
+
+async function aaLoadDepts() {
+    try {
+        const res   = await fetch('/api/agenthub/org/departments');
+        const depts = await res.json();
+        const sel   = document.getElementById('aaDeptFilter');
+        (depts || []).forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.id; opt.textContent = d.name;
+            sel.appendChild(opt);
+        });
+    } catch {}
+}
+
+function aaOnDeptChange() {
+    const deptId = document.getElementById('aaDeptFilter').value;
+    const sel    = document.getElementById('aaAgentFilter');
+    // Rebuild agent dropdown filtered by dept
+    sel.innerHTML = '<option value="">All Agents</option>';
+    const filtered = deptId
+        ? _aaAllAgents.filter(a => String(a.department_id) === String(deptId))
+        : _aaAllAgents;
+    filtered.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id; opt.textContent = a.name;
+        sel.appendChild(opt);
+    });
+    aaLoadConvos();
+}
+
+async function aaLoadAgents() {
+    try {
+        const res  = await fetch('/api/agenthub/agents/all');
+        const data = await res.json();
+        _aaAllAgents = data || [];
+        const sel  = document.getElementById('aaAgentFilter');
+        _aaAllAgents.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id; opt.textContent = a.name;
+            sel.appendChild(opt);
+        });
+    } catch {}
+}
+
+async function aaLoadConvos() {
+    const agentId = document.getElementById('aaAgentFilter').value;
+    const url     = agentId
+        ? `/api/agenthub/chat/conversations?agent_id=${agentId}`
+        : '/api/agenthub/chat/conversations';
+    try {
+        const res  = await fetch(url);
+        const data = await res.json();
+        _aaConvos  = data || [];
+        aaFilterConvos();
+    } catch { _aaConvos = []; aaFilterConvos(); }
+}
+
+function aaRefresh() {
+    aaLoadConvos();
+    if (_aaActiveId) aaSelectConvo(_aaActiveId);
+}
+
+function aaFilterConvos() {
+    const q        = (document.getElementById('aaSearch').value || '').toLowerCase();
+    const toolFilt = document.getElementById('aaToolFilter').value;
+
+    _aaFiltered = _aaConvos.filter(c => {
+        if (q && !c.title?.toLowerCase().includes(q)) return false;
+        return true;
+    });
+
+    document.getElementById('aaListCount').textContent = _aaFiltered.length;
+    aaRenderList();
+}
+
+function aaRenderList() {
+    const el = document.getElementById('aaConvoList');
+    if (!_aaFiltered.length) {
+        el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3,#a89b9d);font-size:.85rem;">No conversations found.</div>';
+        return;
+    }
+    el.innerHTML = _aaFiltered.map(c => {
+        const active   = _aaActiveId === c.id;
+        const msgCount = c.message_count || 0;
+        const when     = c.updated_at ? _aaRelTime(c.updated_at) : '';
+        return `
+        <div class="aa-convo-item${active ? ' active' : ''}" onclick="aaSelectConvo('${c.id}')">
+            <div class="aa-convo-title">${esc(c.title || 'Untitled')}</div>
+            <div class="aa-convo-sub">
+                <span>${msgCount} msg${msgCount===1?'':'s'}</span>
+                <span>${when}</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function aaSelectConvo(cid) {
+    _aaActiveId = cid;
+    aaRenderList();
+
+    const body = document.getElementById('aaPanelBody');
+    body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-3);"><div class="spinner-border spinner-border-sm mb-2"></div><br>Loading trace…</div>';
+
+    try {
+        const res  = await fetch(`/api/agenthub/chat/conversations/${cid}`);
+        const data = await res.json();
+
+        const convo   = _aaFiltered.find(c => c.id === cid) || {};
+        const header  = document.getElementById('aaPanelHeader');
+        const title   = document.getElementById('aaPanelTitle');
+        const meta    = document.getElementById('aaPanelMeta');
+        header.style.display = '';
+        title.textContent    = data.title || 'Untitled';
+        meta.textContent     = `${(data.messages||[]).length} messages · ${_aaRelTime(data.updated_at || '')}`;
+
+        aaRenderTrace(data.messages || [], cid);
+    } catch(e) {
+        console.error('aaSelectConvo error:', e);
+        body.innerHTML = `<div class="text-danger p-4">Failed to load conversation: ${esc(e.message)}</div>`;
+    }
+}
+
+function aaRenderTrace(messages, cid) {
+    const body = document.getElementById('aaPanelBody');
+
+    // Group into user+assistant pairs
+    let html = '';
+    let i = 0;
+    while (i < messages.length) {
+        const m = messages[i];
+        if (m.role === 'user') {
+            html += `
+            <div class="aa-turn">
+                <div class="aa-turn-user">
+                    <div class="aa-role"><i class="fas fa-user me-1"></i>User · ${_aaRelTime(m.created_at || '')}</div>
+                    ${esc(m.content)}
+                </div>`;
+            // Look for the next assistant message
+            if (i + 1 < messages.length && messages[i+1].role === 'assistant') {
+                const a = messages[i+1];
+                const toolCalls = a.tool_calls || [];
+                const tokenInfo = a.tokens_used ? `${a.tokens_used.toLocaleString()} tokens` : '';
+                // Tool calls
+                if (toolCalls.length) {
+                    html += '<div class="aa-tool-trace">';
+                    toolCalls.forEach((tc, idx) => {
+                        html += aaToolChipHtml(tc, `aa-tc-${cid}-${i}-${idx}`);
+                    });
+                    html += '</div>';
+                }
+                // Final reply
+                html += `
+                <div class="aa-reply">
+                    <div class="aa-role"><i class="fas fa-robot me-1"></i>Agent · ${_aaRelTime(a.created_at || '')}</div>
+                    ${md2html(a.content || '')}
+                    ${toolCalls.length || tokenInfo ? `<div class="aa-reply-meta">
+                        ${toolCalls.length ? `<span><i class="fas fa-tools me-1"></i>${toolCalls.length} tool call${toolCalls.length===1?'':'s'}</span>` : ''}
+                        ${tokenInfo ? `<span><i class="fas fa-coins me-1"></i>${tokenInfo}</span>` : ''}
+                    </div>` : ''}
+                </div>`;
+                html += '</div>'; // .aa-turn
+                i += 2;
+                continue;
+            }
+            html += '</div>';
+        } else if (m.role === 'assistant') {
+            const toolCalls = m.tool_calls || [];
+            html += '<div class="aa-turn">';
+            if (toolCalls.length) {
+                html += '<div class="aa-tool-trace">';
+                toolCalls.forEach((tc, idx) => {
+                    html += aaToolChipHtml(tc, `aa-tc-${cid}-${i}-${idx}`);
+                });
+                html += '</div>';
+            }
+            html += `<div class="aa-reply">
+                <div class="aa-role"><i class="fas fa-robot me-1"></i>Agent</div>
+                ${md2html ? md2html(m.content || '') : esc(m.content || '')}
+            </div></div>`;
+        }
+        i++;
+    }
+
+    if (!html) html = '<div class="aa-placeholder"><p class="small">No messages in this conversation.</p></div>';
+    body.innerHTML = html;
+}
+
+function aaToolChipHtml(tc, uid) {
+    const toolName = tc.tool || tc.name || '?';
+    const success  = tc.result?.success !== false;
+    const timeStr  = tc.execution_time != null ? `${tc.execution_time}s` : '';
+    const inputStr = JSON.stringify(tc.input  || {}, null, 2);
+    const outStr   = JSON.stringify(tc.result || {}, null, 2);
+    const chipCls  = success ? 'success' : 'error';
+    const icon     = success ? 'fas fa-check-circle' : 'fas fa-times-circle';
+
+    return `
+    <div class="aa-tool-trace" style="margin-bottom:4px;">
+        <div class="aa-tool-chip ${chipCls}" onclick="aaToggleDetail('${uid}', this)">
+            <i class="${icon}"></i>
+            <span style="font-family:monospace;">${esc(toolName)}</span>
+            ${timeStr ? `<span class="aa-tc-time">${timeStr}</span>` : ''}
+            <i class="aa-tc-chev fas fa-chevron-down"></i>
+        </div>
+        <div class="aa-tool-detail" id="${uid}">
+            <div class="aa-tc-cols">
+                <div class="aa-tc-col">
+                    <div class="aa-tc-col-label">Input</div>
+                    <pre class="aa-tc-pre">${esc(inputStr)}</pre>
+                </div>
+                <div class="aa-tc-col">
+                    <div class="aa-tc-col-label" style="color:${success?'#22c55e':'#ef4444'};">Output ${success?'✓':'✗'}</div>
+                    <pre class="aa-tc-pre">${esc(outStr)}</pre>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function aaToggleDetail(uid, chipEl) {
+    const panel  = document.getElementById(uid);
+    const chevron = chipEl.querySelector('.aa-tc-chev');
+    if (!panel) return;
+    const open = panel.classList.contains('open');
+    panel.classList.toggle('open', !open);
+    if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function _aaRelTime(dtStr) {
+    if (!dtStr) return '—';
+    const diff = Math.round((Date.now() - new Date(dtStr.includes('Z')?dtStr:dtStr+'Z')) / 1000);
+    if (diff < 60)    return diff + 's ago';
+    if (diff < 3600)  return Math.round(diff/60) + 'm ago';
+    if (diff < 86400) return Math.round(diff/3600) + 'h ago';
+    return new Date(dtStr).toLocaleDateString();
+}
+
+aaInit();
+</script>
+{% endblock %}

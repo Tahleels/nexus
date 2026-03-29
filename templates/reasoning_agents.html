@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Reasoning Agents Page -->
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Reasoning Agents</h2>
+            <p class="text-muted mb-0">Manage your Reasoning agents</p>
+        </div>
+        <button class="btn btn-primary" onclick="showCreateAgentModal('reasoning')">
+            <i class="fas fa-plus me-2"></i>Create Reasoning Agent
+        </button>
+    </div>
+
+    <div id="reasoning-agents-list">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Agent Name</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Market Analysis Agent</strong></td>
+                        <td>Provides deep market insights and trends</td>
+                        <td><span class="status-badge status-active">Active</span></td>
+                        <td>2024-01-12</td>
+                        <td class="table-actions">
+                            <button class="btn btn-sm btn-primary me-1" onclick="openAgentChat('reasoning', 1, 'Market Analysis Agent')">
+                                <i class="fas fa-comments"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-1">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Risk Assessment Agent</strong></td>
+                        <td>Evaluates business risks and opportunities</td>
+                        <td><span class="status-badge status-active">Active</span></td>
+                        <td>2024-01-08</td>
+                        <td class="table-actions">
+                            <button class="btn btn-sm btn-primary me-1" onclick="openAgentChat('reasoning', 2, 'Risk Assessment Agent')">
+                                <i class="fas fa-comments"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary me-1">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Reasoning Agent Chat Interface -->
+    <div id="reasoning-agent-chat" class="hidden mt-4">
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0" id="reasoning-chat-title">Chat with Agent</h5>
+                    <button class="btn btn-sm btn-outline-light" onclick="closeAgentChat()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="chat-messages" id="reasoning-chat-messages">
+                <div class="message">
+                    <div class="message-content">
+                        Hello! I'm your Reasoning Agent. I can help you with complex analysis and decision-making. What would you like to explore?
+                    </div>
+                </div>
+            </div>
+    <div class="chat-input">
+            <div class="input-group">
+                <input type="text" class="form-control" id="bi-message-input" autocomplete="off"
+                    placeholder="Ask your question in natural language...">
+                <button class="btn btn-secondary" id="voiceAssistantBtn" title="Voice Assistant">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="btn btn-secondary" id="webSearchBtn" title="Web Search">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button class="btn btn-primary" onclick="sendMessage('bi')">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Agents Chat - AI Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+.hub-chat-layout { display: flex; height: calc(100vh - 120px); gap: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+.hub-agent-sidebar { width: 280px; flex-shrink: 0; background: #fff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+.hub-agent-sidebar .sidebar-head { padding: 16px; border-bottom: 1px solid #f2eeee; font-weight: 600; font-size: .9rem; color: #374151; }
+.hub-agent-list { flex: 1; overflow-y: auto; padding: 8px; }
+.hub-agent-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background .15s; margin-bottom: 4px; }
+.hub-agent-item:hover { background: #f8f6f6; }
+.hub-agent-item.active { background: #F8E8EB; border: 1px solid #E8B9C4; }
+.hub-agent-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+.hub-agent-info .name { font-weight: 600; font-size: .85rem; color: #251e21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.hub-agent-info .desc { font-size: .75rem; color: #6e6265; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.hub-chat-panel { flex: 1; display: flex; flex-direction: column; background: #f8f6f6; }
+.hub-chat-header { padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; }
+.hub-chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.hub-msg { max-width: 75%; }
+.hub-msg.user { align-self: flex-end; }
+.hub-msg.assistant { align-self: flex-start; }
+.hub-msg-bubble { padding: 12px 16px; border-radius: 12px; font-size: .9rem; line-height: 1.5; }
+.hub-msg.user .hub-msg-bubble { background: #A22E57; color: #fff; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.hub-msg.assistant .hub-msg-bubble { background: #fff; color: #251e21; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+.hub-msg-meta { font-size: .72rem; color: #a89b9d; margin-top: 4px; }
+.hub-msg.user .hub-msg-meta { text-align: right; }
+.hub-tool-call { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 12px; font-size: .78rem; color: #166534; margin-top: 6px; display:flex; align-items:center; gap:6px; user-select:none; }
+.hub-tool-call.error-chip { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+.hub-tc-name { font-weight:600; }
+.hub-tc-time { color:#6e6265; font-size:.72rem; }
+.hub-tc-chevron { font-size:.65rem; color:#a89b9d; transition:transform .2s; margin-left:auto; }
+.hub-tool-trace { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.hub-tc-detail { background:#150f12; border-radius:0 0 8px 8px; margin-top:-4px; padding:10px 12px; border:1px solid #251e21; border-top:none; }
+.hub-tc-section { margin-bottom:8px; }
+.hub-tc-section:last-child { margin-bottom:0; }
+.hub-tc-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#6e6265; display:block; margin-bottom:4px; }
+.hub-tc-pre { color:#e6dfe0; font-size:.72rem; font-family:monospace; max-height:180px; overflow-y:auto; margin:0; white-space:pre-wrap; word-break:break-all; }
+.hub-chat-input-area { padding: 16px 20px; background: #fff; border-top: 1px solid #e5e7eb; }
+.hub-chat-input-wrap { display: flex; gap: 10px; align-items: flex-end; }
+.hub-chat-textarea { flex: 1; border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 14px; resize: none; font-size: .9rem; max-height: 120px; transition: border-color .2s; }
+.hub-chat-textarea:focus { outline: none; border-color: #A22E57; box-shadow: 0 0 0 3px rgba(162,46,87,.1); }
+.hub-send-btn { height: 42px; width: 42px; border-radius: 50%; border: none; background: #A22E57; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s; flex-shrink: 0; }
+.hub-send-btn:hover { background: #A22E57; }
+.hub-send-btn:disabled { background: #D189A0; cursor: not-allowed; }
+.hub-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; color: #a89b9d; gap: 10px; }
+.hub-empty i { font-size: 2.5rem; }
+.hub-convo-list { flex: 1; overflow-y: auto; padding: 8px; }
+.hub-convo-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: .82rem; color: #374151; transition: background .15s; margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+.hub-convo-item:hover { background: #f2eeee; }
+.hub-convo-item.active { background: #F8E8EB; color: #6B2038; }
+.hub-streaming-cursor { display: inline-block; width: 8px; height: 14px; background: #A22E57; animation: blink .7s infinite; vertical-align: text-bottom; margin-left: 2px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.tokens-badge { font-size:.72rem; background:#f2eeee; border-radius:20px; padding:2px 8px; color:#6e6265; }
+.hub-dataviz-card  { max-width: 100%; }
+.hub-dataviz-card  .btn { transition: background .15s, color .15s; }
+.hub-doccreate-card { max-width: 100%; }
+.hub-doccreate-card .btn { transition: background .15s, color .15s; }
+/* Inline data table inside hub chat bubbles */
+.hub-data-table-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; border-radius: 6px; border: 1px solid #e6dfe0; margin-top: 8px; }
+.hub-data-table { border-collapse: collapse; width: 100%; font-size: .76rem; }
+.hub-data-table th { background: #f2eeee; color: #574c4f; font-weight: 600; padding: 6px 10px; text-align: left; border-bottom: 2px solid #e6dfe0; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+.hub-data-table td { padding: 5px 10px; border-bottom: 1px solid #f2eeee; color: #251e21; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hub-data-table tr:last-child td { border-bottom: none; }
+.hub-data-table tr:hover td { background: #f8f6f6; }
+.hub-null-val { color: #a89b9d; font-style: italic; }
+.hub-show-all-btn { font-size: .73rem; color: #A22E57; background: none; border: none; padding: 3px 0; cursor: pointer; }
+.hub-show-all-btn:hover { color: #6B2038; text-decoration: underline; }
+/* Preview panel */
+#hubChatPanel { min-width: 0; flex: 1; }
+#hubPreviewPanel {
+    width: 46%; flex-shrink: 0; display: none; flex-direction: column;
+    background: #fff; border-left: 1px solid #e5e7eb;
+}
+#hubPreviewPanel.open { display: flex; }
+#hubPreviewContent { flex: 1; min-height: 0; overflow: hidden; }
+#hubPreviewContent iframe { width: 100%; height: 100%; border: none; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0" id="chatPageTitle"><i class="fas fa-comments me-2"></i>Agents Chat</h2>
+        <p class="text-muted mb-0" id="chatPageSubtitle">Chat with your assigned intelligent agents</p>
+    </div>
+    <!-- Token balance card -->
+    <div id="tokenBalanceCard" style="
+        background:#f8f6f6;border:1px solid #e6dfe0;border-radius:12px;
+        padding:10px 18px;text-align:right;min-width:140px;display:none;">
+        <div style="font-size:.72rem;color:#a89b9d;font-weight:500;margin-bottom:2px;">Token Balance</div>
+        <div id="tokenBalanceVal" style="font-size:1.35rem;font-weight:700;color:#251e21;line-height:1.1;">—</div>
+        <div id="tokenBalanceSub" style="font-size:.68rem;color:#a89b9d;margin-top:1px;"></div>
+    </div>
+</div>
+
+<div class="hub-chat-layout">
+    <!-- Agent selector sidebar -->
+    <div class="hub-agent-sidebar">
+        <div class="sidebar-head"><i class="fas fa-robot me-2 text-primary"></i>My Agents</div>
+        <div class="hub-agent-list" id="hubAgentList">
+            <div class="text-center py-4 text-muted" style="font-size:.85rem;">
+                <div class="spinner-border spinner-border-sm mb-2"></div><br>Loading agents...
+            </div>
+        </div>
+        <div class="border-top p-2" style="font-size:.8rem;color:#6e6265;">
+            <i class="fas fa-history me-1"></i>
+            <a href="#" class="text-muted text-decoration-none" onclick="showConversations(); return false;">View conversations</a>
+        </div>
+    </div>
+
+    <!-- Chat panel -->
+    <div class="hub-chat-panel" id="hubChatPanel">
+        <div class="hub-chat-header" id="hubChatHeader" style="display:none;">
+            <div class="hub-agent-avatar" id="activeChatAvatar" style="width:36px;height:36px;font-size:.8rem;"></div>
+            <div>
+                <div style="font-weight:600;font-size:.9rem;" id="activeChatName"></div>
+                <div style="font-size:.75rem;color:#6e6265;" id="activeChatObj"></div>
+            </div>
+            <!-- Create document dropdown -->
+            <div class="dropdown ms-auto me-1" id="hubCreateDropdown" style="display:none;">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
+                        title="Create any document from this conversation" style="font-size:.78rem;">
+                    <i class="fas fa-file-export me-1"></i>Create
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" style="min-width:200px;">
+                    <li><h6 class="dropdown-header" style="font-size:.68rem;letter-spacing:.06em;">VISUAL</h6></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('presentation');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-slideshare me-2" style="color:#A22E57;width:16px;"></i>Presentation
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('infographic');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-chart-pie me-2" style="color:#ef4444;width:16px;"></i>Infographic / Report
+                    </a></li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li><h6 class="dropdown-header" style="font-size:.68rem;letter-spacing:.06em;">DOCUMENTS</h6></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('docx');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-word me-2" style="color:#A22E57;width:16px;"></i>Word Document (.docx)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('xlsx');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-excel me-2" style="color:#16a34a;width:16px;"></i>Excel Spreadsheet (.xlsx)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('csv');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-csv me-2" style="color:#d97706;width:16px;"></i>CSV Data
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('markdown');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-code me-2" style="color:#7c3aed;width:16px;"></i>Markdown (.md)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('txt');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-alt me-2" style="color:#6e6265;width:16px;"></i>Plain Text (.txt)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="hubCreateDocument('pdf');return false;" style="font-size:.82rem;">
+                        <i class="fas fa-file-pdf me-2" style="color:#a89b9d;width:16px;"></i>PDF Export
+                    </a></li>
+                    <li id="hubCreateDashboardItem" style="display:none;">
+                        <hr class="dropdown-divider my-1">
+                        <a class="dropdown-item" href="#" onclick="hubCreateDocument('dashboard');return false;" style="font-size:.82rem;">
+                            <i class="fas fa-tachometer-alt me-2" style="color:#f59e0b;width:16px;"></i>Dashboard (data)
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="startNewConvo()" title="New conversation">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+
+        <div class="hub-empty" id="hubEmptyState">
+            <i class="fas fa-robot"></i>
+            <div style="font-weight:600;">Select an agent to start chatting</div>
+            <div style="font-size:.85rem;">Your conversations are private and scoped to each session.</div>
+        </div>
+
+        <div class="hub-chat-messages" id="hubChatMessages" style="display:none;"></div>
+
+        <div class="hub-chat-input-area" id="hubInputArea" style="display:none;">
+            <!-- File attachment preview bar -->
+            <div id="attachPreviewBar" style="display:none; padding:6px 4px 8px; border-bottom:1px solid #f2eeee; margin-bottom:8px;">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span id="attachFileChip" class="badge bg-light text-dark border d-flex align-items-center gap-1" style="font-size:.8rem;padding:.35rem .6rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        <i class="fas fa-paperclip me-1"></i>
+                        <span id="attachFileName">file.pdf</span>
+                    </span>
+                    <!-- Static mode badge (inline vs KB) -->
+                    <span id="attachModeBadge"></span>
+                    <button class="btn btn-xs btn-outline-danger ms-auto" onclick="clearAttachment()" style="font-size:.75rem;padding:3px 6px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="attachProgressWrap" style="display:none;margin-top:6px;">
+                    <div class="progress" style="height:4px"><div id="attachProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div></div>
+                    <small id="attachProgressLabel" class="text-muted" style="font-size:.72rem;">Processing…</small>
+                </div>
+            </div>
+
+            <div class="hub-chat-input-wrap">
+                <!-- Attach file button (inline read) -->
+                <button class="btn btn-sm btn-outline-secondary" id="hubAttachBtn" title="Attach file (read content inline)"
+                        onclick="document.getElementById('hubFileInput').click()"
+                        style="height:42px;width:42px;border-radius:50%;flex-shrink:0;padding:0;">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                <input type="file" id="hubFileInput" class="d-none" multiple
+                       accept=".pdf,.docx,.doc,.xlsx,.xls,.xlsm,.csv,.pptx,.ppt,.html,.htm,.eml,.msg,.png,.jpg,.jpeg,.tiff,.bmp,.txt,.md,.json"
+                       onchange="onAttachFileSelected(event)">
+
+                <!-- Add Document button — only for agents with process_document tool -->
+                <button class="btn btn-sm btn-outline-primary" id="hubAddDocBtn"
+                        onclick="document.getElementById('hubAddDocInput').click()"
+                        title="Upload and index document to Knowledge Base"
+                        style="display:none;height:42px;border-radius:8px;font-size:.8rem;padding:0 12px;white-space:nowrap;flex-shrink:0;">
+                    <i class="fas fa-file-import me-1"></i>Add Document
+                </button>
+                <input type="file" id="hubAddDocInput" class="d-none" multiple
+                       accept=".pdf,.docx,.doc,.xlsx,.xls,.xlsm,.csv,.pptx,.ppt,.html,.htm,.eml,.msg,.png,.jpg,.jpeg,.tiff,.bmp,.txt,.md,.json"
+                       onchange="onAddDocumentFileSelected(event)">
+
+                <textarea class="hub-chat-textarea" id="hubMsgInput" rows="1"
+                    placeholder="Type your message…"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendHubMsg();}"
+                    oninput="autoResize(this)"></textarea>
+                <button class="hub-send-btn" id="hubSendBtn" onclick="sendHubMsg()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- In-chat preview panel (presentation / infographic / document) -->
+    <div id="hubPreviewPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e5e7eb;background:#f8f6f6;flex-shrink:0;">
+            <strong id="hubPreviewTitle" style="font-size:.88rem;color:#251e21;">Preview</strong>
+            <button onclick="closeHubPreview()" style="background:none;border:1px solid #d1d5db;border-radius:6px;padding:2px 10px;cursor:pointer;font-size:.8rem;color:#6e6265;line-height:1.6;">✕ Close</button>
+        </div>
+        <div id="hubPreviewContent"></div>
+    </div>
+
+    <!-- Conversations panel (hidden until toggled) -->
+    <div class="hub-agent-sidebar" id="hubConvoPanel" style="display:none;">
+        <div class="sidebar-head d-flex justify-content: space-between align-items-center">
+            <span><i class="fas fa-history me-2 text-secondary"></i>Conversations</span>
+            <button class="btn btn-sm btn-link text-muted p-0 ms-auto" onclick="hideConversations()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="hub-convo-list" id="hubConvoList">
+            <div class="text-center py-4 text-muted" style="font-size:.82rem;">Loading…</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_chat.js') }}"></script>
+{% endblock %}
