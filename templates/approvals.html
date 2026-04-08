@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Approvals — Nexus{% endblock %}
+
+{% block extra_css %}
+<style>
+.apr-stat { background:#fff; border-radius:10px; padding:16px 20px; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+.apr-stat .n { font-size:1.6rem; font-weight:700; color:#251e21; }
+.apr-stat .l { font-size:.75rem; color:#6e6265; margin-top:2px; }
+
+.apr-card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:14px; overflow:hidden; border-left:4px solid transparent; transition:border-color .2s; }
+.apr-card.pending  { border-left-color:#f59e0b; }
+.apr-card.approved { border-left-color:#22c55e; }
+.apr-card.rejected { border-left-color:#ef4444; }
+
+.apr-card-body { padding:16px 20px; }
+.apr-card-header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px; }
+.apr-title { font-weight:700; font-size:.95rem; color:#251e21; }
+.apr-meta  { font-size:.78rem; color:#a89b9d; margin-top:4px; }
+.apr-type-badge { padding:2px 10px; border-radius:20px; font-size:.72rem; font-weight:600; white-space:nowrap; flex-shrink:0; }
+.apr-type-badge.agent    { background:#F3DCE0; color:#6B2038; }
+.apr-type-badge.workflow { background:#fef3c7; color:#92400e; }
+
+.apr-status-badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:.75rem; font-weight:600; }
+.apr-status-badge.pending  { background:#fef3c7; color:#92400e; }
+.apr-status-badge.approved { background:#dcfce7; color:#15803d; }
+.apr-status-badge.rejected { background:#fee2e2; color:#b91c1c; }
+
+.apr-ctx-box { background:#f8f6f6; border-radius:8px; padding:12px 14px; font-size:.82rem; color:#574c4f; margin-top:10px; white-space:pre-wrap; border:1px solid #e6dfe0; display:none; }
+.apr-action-bar { display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap; }
+.apr-note-input { font-size:.82rem; }
+
+.apr-resolution { background:#f8f6f6; border-radius:8px; padding:10px 14px; margin-top:10px; font-size:.82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-check-double me-2 text-primary"></i>Approvals</h2>
+        <p class="text-muted mb-0">Human-in-the-loop decisions for agents and workflows</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadApprovals()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4" id="aprStats">
+    <div class="col-6 col-md-3">
+        <div class="apr-stat">
+            <div class="n text-warning" id="aStat_pending">—</div>
+            <div class="l"><i class="fas fa-clock me-1 text-warning"></i>Pending</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="apr-stat">
+            <div class="n text-success" id="aStat_approved">—</div>
+            <div class="l"><i class="fas fa-check me-1 text-success"></i>Approved</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="apr-stat">
+            <div class="n text-danger" id="aStat_rejected">—</div>
+            <div class="l"><i class="fas fa-times me-1 text-danger"></i>Rejected</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="apr-stat">
+            <div class="n text-primary" id="aStat_total">—</div>
+            <div class="l"><i class="fas fa-list me-1 text-primary"></i>Total</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter tabs -->
+<ul class="nav nav-tabs mb-3" id="aprTabs">
+    <li class="nav-item">
+        <button class="nav-link active" onclick="filterApprovals('all', this)">
+            All <span class="badge bg-secondary ms-1" id="tabAll">0</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" onclick="filterApprovals('pending', this)">
+            Pending <span class="badge bg-warning text-dark ms-1" id="tabPending">0</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" onclick="filterApprovals('approved', this)">
+            Approved <span class="badge bg-success ms-1" id="tabApproved">0</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" onclick="filterApprovals('rejected', this)">
+            Rejected <span class="badge bg-danger ms-1" id="tabRejected">0</span>
+        </button>
+    </li>
+</ul>
+
+<div id="aprList">
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border mb-2"></div>
+        <p>Loading approvals…</p>
+    </div>
+</div>
+
+<!-- Resolve Modal -->
+<div class="modal fade" id="resolveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resolveModalTitle">Resolve Approval</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="resolveApprovalId">
+                <input type="hidden" id="resolveDecision">
+
+                <div id="resolveCtxPreview" class="apr-ctx-box mb-3" style="display:block;max-height:200px;overflow-y:auto;"></div>
+
+                <label class="form-label">
+                    Note <span id="resolveNoteRequired" class="text-danger" style="display:none;">*</span>
+                    <span class="text-muted small">(optional for approval, recommended for rejection)</span>
+                </label>
+                <textarea class="form-control apr-note-input" id="resolveNote" rows="3"
+                          placeholder="Add a note for the requester…"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn" id="resolveConfirmBtn" onclick="confirmResolve()">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Context Modal -->
+<div class="modal fade" id="ctxModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Approval Context</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="ctxModalBody"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/approvals.js') }}"></script>
+{% endblock %}

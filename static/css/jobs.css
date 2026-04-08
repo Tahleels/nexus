@@ -1,0 +1,300 @@
+/* ============================================================
+   jobs.css — Nexus AI · Jobs & Scheduler
+   Add to your static/css/ folder and link in base.html,
+   or paste into your existing main stylesheet.
+   ============================================================ */
+
+/* ── Stat / KPI cards ──────────────────────────────────────── */
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, #e9ecef);
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: box-shadow .2s, background-color .22s, border-color .22s;
+}
+
+.stat-card:hover {
+    box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, .06));
+}
+
+.stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-2, #6c757d);
+    margin-top: 2px;
+}
+
+/* ── Monitor KPI ───────────────────────────────────────────── */
+.mon-kpi {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--card-border, #e9ecef);
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: background-color .22s, border-color .22s;
+}
+
+.mon-kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.mon-kpi-val {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.mon-kpi-lbl {
+    font-size: 12px;
+    color: var(--text-2, #6c757d);
+    margin-top: 2px;
+}
+
+/* ── Status badges ─────────────────────────────────────────── */
+.sbadge,
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.sbadge.running,
+.badge-status.running {
+    background: var(--info-bg, #dbeafe);
+    color: var(--info-text, #1e40af);
+}
+
+.sbadge.success,
+.badge-status.success {
+    background: var(--success-bg, #dcfce7);
+    color: var(--success-text, #166534);
+}
+
+.sbadge.failed,
+.badge-status.failed {
+    background: var(--danger-bg, #fee2e2);
+    color: var(--danger-text, #991b1b);
+}
+
+.sbadge.disabled,
+.badge-status.disabled {
+    background: var(--bg-surface-2, #f3f4f6);
+    color: var(--text-2, #6b7280);
+}
+
+.sbadge.scheduled,
+.badge-status.scheduled {
+    background: rgba(124,58,237,.1);
+    color: #8b5cf6;
+}
+
+.sbadge.unknown,
+.badge-status.unknown {
+    background: var(--bg-surface-2, #f3f4f6);
+    color: var(--text-2, #6b7280);
+}
+
+/* ── Tool badges ───────────────────────────────────────────── */
+.tool-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tool-badge.dashboard {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.tool-badge.report {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.tool-badge.infographic {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+.tool-badge.ppt {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* ── Log entry (jobs logs modal) ───────────────────────────── */
+.log-entry {
+    border-bottom: 1px solid var(--border, #f3f4f6);
+    padding: 14px 18px;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-lines {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 8px;
+}
+
+/* ── Execution list (monitor) ──────────────────────────────── */
+.exec-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border, #f3f4f6);
+    transition: background .15s, border-color .22s;
+}
+
+.exec-row:hover {
+    background: var(--table-hover, #f9fafb);
+}
+
+.exec-row:last-child {
+    border-bottom: none;
+}
+
+.exec-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.exec-icon.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.exec-icon.failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.exec-icon.running {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.exec-meta {
+    font-size: 12px;
+    color: var(--text-2, #6b7280);
+    margin-top: 3px;
+}
+
+.exec-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.exec-tag {
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-surface-2, #f3f4f6);
+    color: var(--text-1, #374151);
+}
+
+/* ── Log block (detail modal) ──────────────────────────────── */
+.log-block {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    max-height: 280px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── Modal tab nav tweak ───────────────────────────────────── */
+#jobTabs .nav-link {
+    font-size: 13px;
+    padding: 7px 14px;
+    color: var(--text-2, #6b7280);
+    border-radius: 6px 6px 0 0;
+}
+
+#jobTabs .nav-link.active {
+    font-weight: 600;
+    color: var(--bs-primary, #0d6efd);
+}
+
+/* ── Responsive table actions ─────────────────────────────── */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .page-header-right {
+        width: 100%;
+    }
+
+    .stat-card {
+        padding: 12px 14px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+    }
+}

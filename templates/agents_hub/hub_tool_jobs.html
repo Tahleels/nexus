@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Tool Jobs - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.tj-layout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; }
+@media(max-width:900px){ .tj-layout{ grid-template-columns:1fr; } }
+
+/* ── Job list ────────────────────────────────────────────────────────────── */
+.tj-list-wrap { background:var(--card-bg,#fff); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; position:sticky; top:80px; transition:background-color .22s; }
+.tj-list-header { padding:14px 16px; border-bottom:1px solid var(--card-border,#f2eeee); display:flex; align-items:center; justify-content:space-between; }
+.tj-list-header h6 { margin:0; font-size:.85rem; font-weight:700; color:var(--text-1,#150f12); }
+.tj-job-item { padding:12px 16px; border-bottom:1px solid var(--card-border,#f8f6f6); cursor:pointer; transition:background .15s; display:flex; align-items:center; gap:10px; }
+.tj-job-item:hover { background:var(--bg-surface-2,#f8f6f6); }
+.tj-job-item.active { background:var(--accent-bg,#eef2ff); }
+.tj-job-icon { width:34px; height:34px; border-radius:8px; background:var(--bg-surface-2,#f2eeee); display:flex; align-items:center; justify-content:center; font-size:.88rem; flex-shrink:0; }
+.tj-job-meta { flex:1; min-width:0; }
+.tj-job-name { font-size:.83rem; font-weight:600; color:var(--text-1,#251e21); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tj-job-sub  { font-size:.72rem; color:var(--text-3,#a89b9d); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tj-empty { padding:32px 16px; text-align:center; color:var(--text-3,#a89b9d); font-size:.85rem; }
+
+/* ── Editor panel ────────────────────────────────────────────────────────── */
+.tj-panel { background:var(--card-bg,#fff); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); padding:24px; transition:background-color .22s; }
+.tj-section { margin-bottom:18px; }
+.tj-section-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3,#a89b9d); margin-bottom:8px; }
+
+/* ── Status badges ───────────────────────────────────────────────────────── */
+.badge-success  { background:#dcfce7; color:#166534; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-failed   { background:#fee2e2; color:#991b1b; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-running  { background:#F3DCE0; color:#6B2038; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-active   { background:#dcfce7; color:#166534; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-paused   { background:#fef9c3; color:#713f12; font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+
+/* ── Env var rows ────────────────────────────────────────────────────────── */
+.env-row { display:grid; grid-template-columns:180px 1fr 32px; gap:6px; align-items:center; margin-bottom:6px; }
+.env-row input { font-size:.82rem; font-family:monospace; }
+
+/* ── Last run output ─────────────────────────────────────────────────────── */
+#tjLastRunOutput { background:#150f12; color:#a89b9d; border-radius:8px; padding:12px 14px; font-size:.78rem; font-family:monospace; max-height:200px; overflow-y:auto; white-space:pre-wrap; }
+
+/* ── Cron presets ────────────────────────────────────────────────────────── */
+.cron-preset { font-size:.72rem; padding:2px 8px; border-radius:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-tools me-2"></i>Tool Jobs</h2>
+        <p class="text-muted mb-0">Schedule individual tools to run on a cron timer — no agent required</p>
+    </div>
+    <button class="btn btn-primary" onclick="tjNew()">
+        <i class="fas fa-plus me-2"></i>New Job
+    </button>
+</div>
+
+<div class="tj-layout mt-3">
+
+    <!-- LEFT: Job list -->
+    <div class="tj-list-wrap">
+        <div class="tj-list-header">
+            <h6><i class="fas fa-clock me-1"></i>Scheduled Jobs</h6>
+            <span id="tjJobCount" class="badge bg-secondary" style="font-size:.7rem;">0</span>
+        </div>
+        <div id="tjJobList">
+            <div class="tj-empty"><i class="fas fa-circle-notch fa-spin mb-2"></i><br>Loading…</div>
+        </div>
+    </div>
+
+    <!-- RIGHT: Editor -->
+    <div class="tj-panel" id="tjEditorPanel">
+
+        <!-- Placeholder -->
+        <div id="tjPlaceholder" class="text-center py-5 text-muted">
+            <i class="fas fa-tools fa-2x mb-3 d-block" style="color:#d3c6c8;"></i>
+            <p class="mb-1 fw-semibold">No job selected</p>
+            <p class="small">Click <strong>+ New Job</strong> to create one, or select a job from the list.</p>
+        </div>
+
+        <!-- Form -->
+        <div id="tjForm" style="display:none;">
+
+            <!-- Job name + tool selector -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Job Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="tjName" placeholder="e.g. Daily Weather Fetch" autocomplete="off">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" style="font-size:.83rem;">Tool <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm" id="tjTool" onchange="tjOnToolChange()">
+                        <option value="">— select a tool —</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Dynamic parameter fields -->
+            <div class="tj-section" id="tjParamSection" style="display:none;">
+                <div class="tj-section-label"><i class="fas fa-sliders-h me-1"></i>Parameters</div>
+                <div id="tjParamFields"></div>
+            </div>
+
+            <!-- Environment variables -->
+            <div class="tj-section">
+                <div class="tj-section-label"><i class="fas fa-key me-1"></i>Environment Variables</div>
+                <div class="form-text mb-2">API keys and secrets injected at run time — never stored in code.</div>
+                <div id="tjEnvVarRows"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="tjAddEnvVar()">
+                    <i class="fas fa-plus me-1"></i>Add Variable
+                </button>
+            </div>
+
+            <!-- Cron schedule -->
+            <div class="tj-section">
+                <div class="tj-section-label"><i class="fas fa-clock me-1"></i>Schedule (cron)</div>
+                <input type="text" class="form-control form-control-sm mb-2" id="tjSchedule" autocomplete="off"
+                       placeholder="0 9 * * *" style="font-family:monospace; max-width:220px;">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-sm btn-outline-secondary cron-preset" onclick="tjSetCronPreset('0 9 * * *')">Daily 9am</button>
+                    <button class="btn btn-sm btn-outline-secondary cron-preset" onclick="tjSetCronPreset('0 * * * *')">Every hour</button>
+                    <button class="btn btn-sm btn-outline-secondary cron-preset" onclick="tjSetCronPreset('*/30 * * * *')">Every 30 min</button>
+                    <button class="btn btn-sm btn-outline-secondary cron-preset" onclick="tjSetCronPreset('0 8 * * 1')">Mon 8am</button>
+                    <button class="btn btn-sm btn-outline-secondary cron-preset" onclick="tjSetCronPreset('0 0 * * *')">Midnight</button>
+                </div>
+            </div>
+
+            <!-- Last run panel (edit mode only) -->
+            <div class="tj-section" id="tjLastRunSection" style="display:none;">
+                <div class="tj-section-label"><i class="fas fa-history me-1"></i>Last Run</div>
+                <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+                    <span id="tjLastRunStatusBadge"></span>
+                    <span id="tjLastRunAt" class="text-muted" style="font-size:.78rem;"></span>
+                    <span id="tjRunCount" class="text-muted" style="font-size:.78rem;"></span>
+                </div>
+                <div id="tjLastRunOutputWrap" style="display:none;">
+                    <pre id="tjLastRunOutput"></pre>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="d-flex gap-2 flex-wrap align-items-center pt-3 border-top">
+                <button class="btn btn-primary" id="tjSaveBtn" onclick="tjSave()">
+                    <i class="fas fa-save me-2"></i>Save Job
+                </button>
+                <button class="btn btn-outline-success" id="tjRunNowBtn" onclick="tjRunNow()" style="display:none;">
+                    <i class="fas fa-play me-2"></i>Run Now
+                </button>
+                <button class="btn btn-outline-warning" id="tjToggleBtn" onclick="tjToggle()" style="display:none;">
+                    <i class="fas fa-pause me-2"></i>Pause
+                </button>
+                <button class="btn btn-outline-danger ms-auto" id="tjDeleteBtn" onclick="tjDelete()" style="display:none;">
+                    <i class="fas fa-trash me-2"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'tool-jobs'; initHubPage();</script>
+{% endblock %}

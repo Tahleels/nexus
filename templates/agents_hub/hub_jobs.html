@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Scheduler - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+.job-card { background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 2px 6px rgba(0,0,0,.05); margin-bottom:12px; display:flex; align-items:center; gap:14px; }
+.job-icon { width:44px; height:44px; border-radius:10px; background:#f2eeee; display:flex; align-items:center; justify-content:center; font-size:1.2rem; color:#6366f1; flex-shrink:0; }
+.job-name { font-weight:600; font-size:.92rem; color:#251e21; }
+.job-desc { font-size:.8rem; color:#6e6265; margin-top:2px; }
+.job-schedule { font-size:.78rem; font-family:monospace; background:#f8f6f6; padding:2px 8px; border-radius:4px; color:#574c4f; }
+.job-type-badge { font-size:.7rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.job-type-badge.agent { background:#F3DCE0; color:#6B2038; }
+.job-type-badge.workflow { background:#dcfce7; color:#166534; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-clock me-2"></i>Agent Scheduler</h2>
+        <p class="text-muted mb-0">Schedule agents and workflows to run automatically</p>
+    </div>
+    <button class="btn btn-primary" onclick="showCreateJobModal()">
+        <i class="fas fa-plus me-2"></i>New Job
+    </button>
+</div>
+
+<div id="hubJobsList">
+    <div class="text-center py-5 text-muted"><div class="spinner-border mb-2"></div><p>Loading jobs…</p></div>
+</div>
+
+<!-- Create Job Modal -->
+<div class="modal fade" id="jobModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Scheduled Job</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Job Name</label>
+                        <input type="text" class="form-control" id="jobName" placeholder="Daily Report" autocomplete="off">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" id="jobDesc" placeholder="What this job does" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" id="jobType" onchange="updateJobTargets()">
+                            <option value="agent">Agent</option>
+                            <option value="workflow">Workflow</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Target</label>
+                        <select class="form-select" id="jobTarget"><option value="">Loading…</option></select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Schedule (Cron)</label>
+                        <input type="text" class="form-control font-monospace" id="jobSchedule" value="0 9 * * *" placeholder="0 9 * * *" autocomplete="off">
+                        <div class="form-text">Examples: <code>0 9 * * *</code> = daily 9am, <code>0 */4 * * *</code> = every 4h, <code>0 0 * * 1</code> = weekly Monday</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="createJob()">Create Job</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>hubPage = 'jobs'; initHubPage();</script>
+{% endblock %}

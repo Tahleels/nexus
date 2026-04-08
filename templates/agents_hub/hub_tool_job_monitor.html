@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+{% block title %}Tool Job Monitor - Agents Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Stats bar ───────────────────────────────────────────────────────────── */
+.tjm-stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:14px; margin-bottom:20px; }
+.tjm-stat { background:var(--card-bg,#fff); border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,.06); border-left:3px solid var(--accent,#6366f1); }
+.tjm-stat .val { font-size:1.5rem; font-weight:700; color:var(--text-1,#251e21); line-height:1.2; }
+.tjm-stat .lbl { font-size:.72rem; color:var(--text-3,#a89b9d); margin-top:2px; text-transform:uppercase; letter-spacing:.05em; }
+.tjm-stat.success { border-left-color:#22c55e; }
+.tjm-stat.failed  { border-left-color:#ef4444; }
+.tjm-stat.running { border-left-color:#A22E57; }
+.tjm-stat.paused  { border-left-color:#f59e0b; }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.tjm-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+
+/* ── Job cards ───────────────────────────────────────────────────────────── */
+.tjm-card {
+    background:var(--card-bg,#fff);
+    border:1px solid var(--card-border,#e9ecef);
+    border-radius:12px;
+    padding:0;
+    margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,.05);
+    overflow:hidden;
+    transition:background-color .22s, border-color .22s;
+}
+.tjm-card-header {
+    display:flex; align-items:center; gap:14px;
+    padding:14px 18px; cursor:pointer;
+}
+.tjm-card-header:hover { background:var(--bg-surface-2,#f8f6f6); }
+.tjm-icon { width:40px; height:40px; border-radius:10px; background:var(--bg-surface-2,#f2eeee); display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+.tjm-name { font-weight:700; font-size:.92rem; color:var(--text-1,#251e21); }
+.tjm-tool { font-size:.75rem; color:var(--text-3,#a89b9d); margin-top:1px; font-family:monospace; }
+.tjm-meta { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+
+/* ── Status badges ───────────────────────────────────────────────────────── */
+.s-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.7rem; font-weight:600; }
+.s-badge.success  { background:#dcfce7; color:#166534; }
+.s-badge.failed   { background:#fee2e2; color:#991b1b; }
+.s-badge.running  { background:#F3DCE0; color:#6B2038; }
+.s-badge.active   { background:#dcfce7; color:#166534; }
+.s-badge.paused   { background:#fef9c3; color:#713f12; }
+.s-badge.never    { background:#f2eeee; color:#6e6265; }
+
+/* ── Output panel ────────────────────────────────────────────────────────── */
+.tjm-output-wrap { border-top:1px solid var(--card-border,#e9ecef); padding:14px 18px; display:none; }
+.tjm-output-wrap.open { display:block; }
+.tjm-output pre {
+    background:#150f12; color:#a89b9d; border-radius:8px;
+    padding:12px 14px; font-size:.78rem; font-family:monospace;
+    max-height:260px; overflow-y:auto; white-space:pre-wrap; margin:0;
+}
+.tjm-actions { display:flex; gap:6px; margin-left:auto; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-monitor-heart-rate me-2" style="font-size:1.3rem;"></i>Tool Job Monitor</h2>
+        <p class="text-muted mb-0">Live status and run history for all scheduled tool jobs</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="tjmRefresh()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+        <a href="{{ url_for('agents_hub.hub_tool_jobs_page') }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-tools me-1"></i>Manage Jobs
+        </a>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="tjm-stat-grid" id="tjmStats">
+    <div class="tjm-stat"><div class="val">—</div><div class="lbl">Total Jobs</div></div>
+    <div class="tjm-stat success"><div class="val">—</div><div class="lbl">Active</div></div>
+    <div class="tjm-stat paused"><div class="val">—</div><div class="lbl">Paused</div></div>
+    <div class="tjm-stat success"><div class="val">—</div><div class="lbl">Success (last run)</div></div>
+    <div class="tjm-stat failed"><div class="val">—</div><div class="lbl">Failed (last run)</div></div>
+</div>
+
+<!-- Toolbar -->
+<div class="tjm-toolbar">
+    <input type="text" class="form-control form-control-sm" style="max-width:240px;"
+           id="tjmSearch" placeholder="Search jobs…" autocomplete="off" oninput="tjmFilter()">
+    <select class="form-select form-select-sm" style="max-width:150px;" id="tjmStatusFilter" onchange="tjmFilter()">
+        <option value="">All Status</option>
+        <option value="active">Active</option>
+        <option value="paused">Paused</option>
+    </select>
+    <select class="form-select form-select-sm" style="max-width:160px;" id="tjmRunFilter" onchange="tjmFilter()">
+        <option value="">All Last Runs</option>
+        <option value="success">Last: Success</option>
+        <option value="failed">Last: Failed</option>
+        <option value="never">Never Run</option>
+    </select>
+    <span id="tjmLastRefresh" class="text-muted ms-auto" style="font-size:.75rem;"></span>
+</div>
+
+<!-- Job cards -->
+<div id="tjmJobList">
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border mb-2"></div>
+        <p>Loading jobs…</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/agenthub_hub.js') }}"></script>
+<script>
+'use strict';
+let _tjmJobs = [];
+let _tjmOpenId = null;  // expanded card
+
+async function tjmLoad() {
+    try {
+        const res  = await fetch('/api/agenthub/tool-jobs');
+        const data = await res.json();
+        _tjmJobs   = Array.isArray(data) ? data : [];
+    } catch { _tjmJobs = []; }
+    tjmRenderStats();
+    tjmFilter();
+    document.getElementById('tjmLastRefresh').textContent =
+        'Last refresh: ' + new Date().toLocaleTimeString();
+}
+
+function tjmRefresh() { tjmLoad(); }
+
+function tjmRenderStats() {
+    const total   = _tjmJobs.length;
+    const active  = _tjmJobs.filter(j => j.status === 'active').length;
+    const paused  = _tjmJobs.filter(j => j.status === 'paused').length;
+    const success = _tjmJobs.filter(j => j.last_run_status === 'success').length;
+    const failed  = _tjmJobs.filter(j => j.last_run_status === 'failed').length;
+    const cells   = document.querySelectorAll('#tjmStats .tjm-stat .val');
+    if (cells.length >= 5) {
+        cells[0].textContent = total;
+        cells[1].textContent = active;
+        cells[2].textContent = paused;
+        cells[3].textContent = success;
+        cells[4].textContent = failed;
+    }
+}
+
+function tjmFilter() {
+    const q       = (document.getElementById('tjmSearch').value || '').toLowerCase();
+    const status  = document.getElementById('tjmStatusFilter').value;
+    const runStat = document.getElementById('tjmRunFilter').value;
+
+    let jobs = _tjmJobs.filter(j => {
+        if (q && !j.name.toLowerCase().includes(q) && !(j.tool_name||'').toLowerCase().includes(q)) return false;
+        if (status && j.status !== status) return false;
+        if (runStat === 'success' && j.last_run_status !== 'success') return false;
+        if (runStat === 'failed'  && j.last_run_status !== 'failed')  return false;
+        if (runStat === 'never'   && j.last_run_status != null)       return false;
+        return true;
+    });
+
+    tjmRenderList(jobs);
+}
+
+function tjmRenderList(jobs) {
+    const el = document.getElementById('tjmJobList');
+    if (!jobs.length) {
+        el.innerHTML = '<div class="text-center py-5 text-muted"><i class="fas fa-tools fa-2x mb-2 d-block"></i><p>No jobs match your filter.</p></div>';
+        return;
+    }
+    el.innerHTML = jobs.map(j => tjmCardHtml(j)).join('');
+}
+
+function tjmCardHtml(j) {
+    const runSt   = j.last_run_status || 'never';
+    const runBadge = `<span class="s-badge ${runSt}">${runSt === 'never' ? 'never run' : runSt}</span>`;
+    const stBadge  = `<span class="s-badge ${j.status}">${j.status}</span>`;
+    const lastAt   = j.last_run_at ? _tjmRelTime(j.last_run_at) : '—';
+    const runs     = j.run_count || 0;
+    const isOpen   = _tjmOpenId === j.id;
+
+    const pauseLabel  = j.status === 'active' ? 'Pause'   : 'Resume';
+    const pauseIcon   = j.status === 'active' ? 'pause'   : 'play';
+    const pauseClass  = j.status === 'active' ? 'warning' : 'success';
+
+    return `
+    <div class="tjm-card" id="tjmCard_${j.id}">
+        <div class="tjm-card-header" onclick="tjmToggleCard('${j.id}')">
+            <div class="tjm-icon">${j.status === 'active' ? '🟢' : '⏸️'}</div>
+            <div class="flex-grow-1 min-w-0">
+                <div class="tjm-name">${esc(j.name)}</div>
+                <div class="tjm-tool"><i class="fas fa-wrench me-1"></i>${esc(j.tool_name || '—')}</div>
+                <div class="tjm-meta">
+                    ${stBadge}
+                    ${runBadge}
+                    <span class="text-muted" style="font-size:.75rem;"><i class="fas fa-clock me-1"></i>${esc(j.schedule||'—')}</span>
+                    <span class="text-muted" style="font-size:.75rem;">${runs} run${runs===1?'':'s'}</span>
+                    ${j.last_run_at ? `<span class="text-muted" style="font-size:.75rem;">Last: ${lastAt}</span>` : ''}
+                </div>
+            </div>
+            <div class="tjm-actions" onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-success" title="Run Now" onclick="tjmRunNow('${j.id}', this)">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-${pauseClass}" title="${pauseLabel}" onclick="tjmToggleStatus('${j.id}', this)">
+                    <i class="fas fa-${pauseIcon}"></i>
+                </button>
+                <a class="btn btn-sm btn-outline-secondary" title="Edit" href="/agents-hub/tool-jobs">
+                    <i class="fas fa-edit"></i>
+                </a>
+            </div>
+            <i class="fas fa-chevron-${isOpen?'up':'down'} ms-2 text-muted" style="font-size:.75rem;flex-shrink:0;"></i>
+        </div>
+        <div class="tjm-output-wrap${isOpen ? ' open' : ''}" id="tjmOut_${j.id}">
+            <div class="row g-3 mb-3">
+                <div class="col-sm-4">
+                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3,#a89b9d);margin-bottom:4px;">Parameters</div>
+                    <pre style="background:var(--bg-surface-2,#f8f6f6);border-radius:6px;padding:8px 10px;font-size:.75rem;max-height:120px;overflow:auto;margin:0;color:var(--text-2,#574c4f);">${esc(JSON.stringify(j.tool_params||{}, null, 2))}</pre>
+                </div>
+                <div class="col-sm-4">
+                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3,#a89b9d);margin-bottom:4px;">Env Variables</div>
+                    <pre style="background:var(--bg-surface-2,#f8f6f6);border-radius:6px;padding:8px 10px;font-size:.75rem;max-height:120px;overflow:auto;margin:0;color:var(--text-2,#574c4f);">${esc(Object.keys(j.tool_env_vars||{}).map(k=>k+'=***').join('\n') || '(none)')}</pre>
+                </div>
+                <div class="col-sm-4">
+                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3,#a89b9d);margin-bottom:4px;">Schedule Info</div>
+                    <div style="font-size:.8rem;color:var(--text-2,#574c4f);">
+                        <div><strong>Cron:</strong> <code>${esc(j.schedule||'—')}</code></div>
+                        <div class="mt-1"><strong>Total Runs:</strong> ${j.run_count||0}</div>
+                        <div class="mt-1"><strong>Created:</strong> ${j.created_at ? new Date(j.created_at).toLocaleDateString() : '—'}</div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3,#a89b9d);margin-bottom:6px;">
+                    Last Run Output
+                    ${j.last_run_status ? `<span class="s-badge ${j.last_run_status} ms-2">${j.last_run_status}</span>` : ''}
+                    ${j.last_run_at ? `<span class="text-muted fw-normal ms-2" style="font-size:.7rem;">${_tjmRelTime(j.last_run_at)}</span>` : ''}
+                </div>
+                <div class="tjm-output">
+                    <pre>${j.last_run_output ? esc(j.last_run_output) : '<span style="color:#574c4f;font-style:italic;">No output yet — job has not run.</span>'}</pre>
+                </div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function tjmToggleCard(jid) {
+    _tjmOpenId = _tjmOpenId === jid ? null : jid;
+    tjmFilter();  // re-render with updated open state
+}
+
+async function tjmRunNow(jid, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const res  = await fetch(`/api/agenthub/tool-jobs/${jid}/run`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('Job started', 'success');
+            setTimeout(() => tjmLoad(), 3500);
+        } else {
+            showToast(data.error || 'Run failed', 'error');
+        }
+    } catch { showToast('Network error', 'error'); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+}
+
+async function tjmToggleStatus(jid, btn) {
+    btn.disabled = true;
+    try {
+        const res = await fetch(`/api/agenthub/tool-jobs/${jid}/toggle`, { method: 'POST' });
+        const job = await res.json();
+        // update local cache
+        const idx = _tjmJobs.findIndex(j => j.id === jid);
+        if (idx !== -1) _tjmJobs[idx] = job;
+        tjmRenderStats();
+        tjmFilter();
+        showToast(job.status === 'active' ? 'Job resumed' : 'Job paused', 'info');
+    } catch { showToast('Network error', 'error'); }
+    finally { btn.disabled = false; }
+}
+
+function _tjmRelTime(dtStr) {
+    if (!dtStr) return '—';
+    const diff = Math.round((Date.now() - new Date(dtStr + 'Z')) / 1000);
+    if (diff < 60)    return diff + 's ago';
+    if (diff < 3600)  return Math.round(diff/60) + 'm ago';
+    if (diff < 86400) return Math.round(diff/3600) + 'h ago';
+    return Math.round(diff/86400) + 'd ago';
+}
+
+// Auto-refresh every 30 seconds
+tjmLoad();
+setInterval(tjmLoad, 30000);
+</script>
+{% endblock %}

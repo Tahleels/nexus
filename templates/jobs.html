@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 class="page-title"><i class="fas fa-clock me-2"></i>Jobs</h1>
+        <p class="page-subtitle">Schedule automated agent queries and report delivery</p>
+    </div>
+    <div class="page-header-right">
+        {% if current_user and current_user.role in ('admin','dev') %}
+        <button class="btn btn-primary" onclick="jobsApp.openCreateModal()">
+            <i class="fas fa-plus me-1"></i>New Job
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats bar -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(34,197,94,.12);color:#22c55e"><i
+                    class="fas fa-layer-group"></i></div>
+            <div>
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(162,46,87,.12);color:#A22E57"><i
+                    class="fas fa-play-circle"></i></div>
+            <div>
+                <div class="stat-value" id="statEnabled">—</div>
+                <div class="stat-label">Enabled</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="fas fa-bolt"></i>
+            </div>
+            <div>
+                <div class="stat-value" id="statRunning">—</div>
+                <div class="stat-label">Running Now</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(239,68,68,.12);color:#ef4444"><i
+                    class="fas fa-exclamation-circle"></i></div>
+            <div>
+                <div class="stat-value" id="statFailed">—</div>
+                <div class="stat-label">Last Failed</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Jobs table -->
+<div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <strong>All Jobs</strong>
+        <div class="d-flex gap-2">
+            <input type="text" id="jobSearch" class="form-control form-control-sm" placeholder="Search jobs…"
+                style="width:200px" autocomplete="off" oninput="jobsApp.filterJobs()">
+            <select id="jobStatusFilter" class="form-select form-select-sm" style="width:140px"
+                onchange="jobsApp.filterJobs()">
+                <option value="">All statuses</option>
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+                <option value="running">Running</option>
+                <option value="success">Last: Success</option>
+                <option value="failed">Last: Failed</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="jobsApp.loadJobs()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Job</th>
+                    <th>Agent</th>
+                    <th>Schedule</th>
+                    <th>Dept / Project</th>
+                    <th>Tools</th>
+                    <th>Last Run</th>
+                    <th>Next Run</th>
+                    <th>Status</th>
+                    <th style="width:170px">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="jobsTableBody">
+                <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">Loading…</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ══════════════ CREATE / EDIT MODAL ══════════════ -->
+<div class="modal fade" id="jobModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="jobModalTitle">New Job</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editJobId">
+
+                <!-- Step tabs -->
+                <ul class="nav nav-tabs mb-4" id="jobTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-tab="basic" href="#"
+                            onclick="jobsApp.switchTab('basic',this);return false">
+                            <i class="fas fa-info-circle me-1"></i>Basic
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-tab="schedule" href="#"
+                            onclick="jobsApp.switchTab('schedule',this);return false">
+                            <i class="fas fa-calendar-alt me-1"></i>Schedule
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-tab="delivery" href="#"
+                            onclick="jobsApp.switchTab('delivery',this);return false">
+                            <i class="fas fa-envelope me-1"></i>Delivery
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- TAB: Basic -->
+                <div id="tab-basic">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Job Name *</label>
+                            <input type="text" class="form-control" id="jName" autocomplete="off"
+                                placeholder="e.g. Monthly Sales Dashboard">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea class="form-control" id="jDesc" rows="2"
+                                placeholder="What does this job do?"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Agent *</label>
+                            <select class="form-select" id="jAgent">
+                                <option value="">Select agent…</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Status</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="jEnabled" checked>
+                                <label class="form-check-label" for="jEnabled">Enabled</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">NLQ Prompt *</label>
+                            <textarea class="form-control" id="jPrompt" rows="3"
+                                placeholder="e.g. Show total revenue by product category for this month"></textarea>
+                            <div class="form-text">Natural language question the agent will execute on schedule.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Output Tools</label>
+                            <div class="d-flex flex-wrap gap-3 mt-1">
+                                <div class="form-check">
+                                    <input class="form-check-input tool-check" type="checkbox" value="dashboard"
+                                        id="tDash">
+                                    <label class="form-check-label" for="tDash">
+                                        <i class="fas fa-tachometer-alt me-1 text-primary"></i>Dashboard
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input tool-check" type="checkbox" value="report" id="tRep">
+                                    <label class="form-check-label" for="tRep">
+                                        <i class="fas fa-file-alt me-1 text-success"></i>Report
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input tool-check" type="checkbox" value="infographic"
+                                        id="tInfo">
+                                    <label class="form-check-label" for="tInfo">
+                                        <i class="fas fa-chart-pie me-1 text-warning"></i>Infographic
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input tool-check" type="checkbox" value="ppt" id="tPpt"
+                                        onchange="jobsApp.onPptToggle()">
+                                    <label class="form-check-label" for="tPpt">
+                                        <i class="fas fa-slideshare me-1 text-danger"></i>Presentation
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── PPT: Email Intelligence ──────────────────────── -->
+                        <div class="col-12 d-none" id="pptEmailSection">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body py-3 px-3">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <h6 class="mb-0 fw-semibold" style="font-size:13px">
+                                            <i class="fas fa-envelope-open-text me-2 text-primary"></i>Email Intelligence
+                                        </h6>
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox" id="jIncludeEmail" checked
+                                                onchange="jobsApp.onIncludeEmailToggle()">
+                                            <label class="form-check-label text-muted" for="jIncludeEmail" style="font-size:12px">Include in PPT</label>
+                                        </div>
+                                    </div>
+
+                                    <div id="pptEmailBody">
+                                        <!-- Detected client row -->
+                                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                            <span class="text-muted" style="font-size:12px">Detected client:</span>
+                                            <span id="pptDetectedClient" class="badge bg-white text-dark border" style="font-size:12px">—</span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                                style="font-size:11px" onclick="jobsApp.detectClientAndFetchSenders()">
+                                                <i class="fas fa-sync-alt me-1"></i>Re-detect
+                                            </button>
+                                        </div>
+
+                                        <!-- Senders list -->
+                                        <div id="pptSendersWrap" style="font-size:13px">
+                                            <span class="text-muted">Enter a prompt above, then click Re-detect.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div><!-- /tab-basic -->
+
+                <!-- TAB: Schedule -->
+                <div id="tab-schedule" style="display:none">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Schedule Type</label>
+                            <select class="form-select" id="jSchedType" onchange="jobsApp.onScheduleTypeChange()">
+                                <option value="interval">Interval (repeat every N units)</option>
+                                <option value="daily">Daily (fixed time)</option>
+                                <option value="weekly">Weekly (fixed day + time)</option>
+                                <option value="cron">Cron Expression</option>
+                            </select>
+                        </div>
+
+                        <!-- ── Interval controls ── -->
+                        <div class="col-md-6" id="schedIntervalWrap">
+                            <label class="form-label fw-semibold">Repeat Every</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="jSchedValue" value="1" min="1" max="999">
+                                <select class="form-select" id="jSchedUnit">
+                                    <option value="minutes">Minutes</option>
+                                    <option value="hours" selected>Hours</option>
+                                    <option value="days">Days</option>
+                                    <option value="weeks">Weeks</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- ── Start From (interval only) ── -->
+                        <div class="col-12" id="schedStartFromWrap">
+                            <label class="form-label fw-semibold">
+                                Start From
+                                <span class="text-muted fw-normal" style="font-size:12px">
+                                    — first fire time; subsequent fires are start + N × interval
+                                </span>
+                            </label>
+                            <input type="datetime-local" class="form-control" id="jSchedStartFrom">
+                            <div class="form-text">
+                                Example: set <strong>10:00 PM on May 20</strong> with interval <strong>10 days</strong>
+                                → fires May 20, May 30, Jun 9, …
+                            </div>
+                        </div>
+
+                        <!-- ── Daily / Weekly time ── -->
+                        <div class="col-md-6" id="schedTimeWrap" style="display:none">
+                            <label class="form-label fw-semibold">Time (UTC)</label>
+                            <input type="time" class="form-control" id="jSchedTime" value="08:00">
+                        </div>
+
+                        <!-- ── Weekly: day of week ── -->
+                        <div class="col-md-6" id="schedDayWrap" style="display:none">
+                            <label class="form-label fw-semibold">Day of Week</label>
+                            <select class="form-select" id="jSchedDay">
+                                <option value="mon">Monday</option>
+                                <option value="tue">Tuesday</option>
+                                <option value="wed">Wednesday</option>
+                                <option value="thu">Thursday</option>
+                                <option value="fri">Friday</option>
+                                <option value="sat">Saturday</option>
+                                <option value="sun">Sunday</option>
+                            </select>
+                        </div>
+
+                        <!-- ── Cron ── -->
+                        <div class="col-12" id="schedCronWrap" style="display:none">
+                            <label class="form-label fw-semibold">Cron Expression</label>
+                            <input type="text" class="form-control font-monospace" id="jSchedCron" autocomplete="off"
+                                placeholder="0 8 * * *">
+                            <div class="form-text">
+                                Standard 5-field cron (UTC): <code>minute hour day month weekday</code>
+                            </div>
+                        </div>
+
+                        <!-- Preview -->
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 mb-0" style="font-size:13px">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <span id="schedPreviewText">—</span>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /tab-schedule -->
+
+                <!-- TAB: Delivery -->
+                <div id="tab-delivery" style="display:none">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Email Recipients</label>
+                            <input type="text" class="form-control" id="jEmails" autocomplete="off"
+                                placeholder="user@example.com, another@example.com">
+                            <div class="form-text">Comma-separated. Leave empty to skip email delivery.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Email Subject</label>
+                            <input type="text" class="form-control" id="jSubject" autocomplete="off"
+                                placeholder="[Nexus AI] Monthly Sales Report">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Message (optional)</label>
+                            <textarea class="form-control" id="jMessage" rows="3"
+                                placeholder="Additional context to include in the email body."></textarea>
+                        </div>
+                    </div>
+                </div><!-- /tab-delivery -->
+
+            </div><!-- /.modal-body -->
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="jobsApp.saveJob()">
+                    <i class="fas fa-save me-1"></i>Save Job
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Execution logs modal -->
+<div class="modal fade" id="logsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-list-alt me-2"></i>Execution History —
+                    <span id="logsModalJobName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="logsModalBody">
+                <div class="p-4 text-center text-muted">Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jobs.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/jobs.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+{% block title %}Job Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 class="page-title"><i class="fas fa-desktop me-2"></i>Job Monitor</h1>
+        <p class="page-subtitle">Live execution status and history across all scheduled jobs</p>
+    </div>
+    <div class="page-header-right d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size:13px">
+            <i class="fas fa-circle text-success me-1" style="font-size:9px"></i>Auto-refreshes every 10s
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" onclick="monitor.refresh()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+        <a href="/jobs" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-cog me-1"></i>Manage Jobs
+        </a>
+    </div>
+</div>
+
+<!-- KPI strip -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="mon-kpi">
+            <div class="mon-kpi-icon" style="background:rgba(99,102,241,.1);color:#6366f1"><i
+                    class="fas fa-layer-group"></i></div>
+            <div class="mon-kpi-body">
+                <div class="mon-kpi-val" id="mkTotalVal">—</div>
+                <div class="mon-kpi-lbl">Total Jobs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="mon-kpi">
+            <div class="mon-kpi-icon" style="background:rgba(34,197,94,.1);color:#22c55e"><i
+                    class="fas fa-check-circle"></i></div>
+            <div class="mon-kpi-body">
+                <div class="mon-kpi-val" id="mkSuccessVal">—</div>
+                <div class="mon-kpi-lbl">Successful (24h)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="mon-kpi">
+            <div class="mon-kpi-icon" style="background:rgba(239,68,68,.1);color:#ef4444"><i
+                    class="fas fa-times-circle"></i></div>
+            <div class="mon-kpi-body">
+                <div class="mon-kpi-val" id="mkFailedVal">—</div>
+                <div class="mon-kpi-lbl">Failed (24h)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="mon-kpi">
+            <div class="mon-kpi-icon" style="background:rgba(245,158,11,.1);color:#f59e0b"><i
+                    class="fas fa-spinner"></i></div>
+            <div class="mon-kpi-body">
+                <div class="mon-kpi-val" id="mkRunningVal">—</div>
+                <div class="mon-kpi-lbl">Running Now</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job status grid -->
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <strong><i class="fas fa-tasks me-2"></i>Job Status Overview</strong>
+        <input type="text" id="monSearch" class="form-control form-control-sm" placeholder="Search…" style="width:200px"
+            autocomplete="off" oninput="monitor.filterGrid()">
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Job Name</th>
+                    <th>Agent</th>
+                    <th>Schedule</th>
+                    <th>Last Run</th>
+                    <th>Duration</th>
+                    <th>Next Run</th>
+                    <th>Status</th>
+                    <th>Runs</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="monitorGrid">
+                <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">Loading…</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Recent executions -->
+<div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <strong><i class="fas fa-history me-2"></i>Recent Executions</strong>
+        <select id="monStatusFilter" class="form-select form-select-sm" style="width:130px"
+            onchange="monitor.filterLogs()">
+            <option value="">All</option>
+            <option value="running">Running</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+        </select>
+    </div>
+    <div id="recentExecList">
+        <div class="p-4 text-center text-muted">Loading…</div>
+    </div>
+</div>
+
+<!-- ══ Execution detail modal (Log + Output tabs) ══ -->
+<div class="modal fade" id="execDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width:1000px">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="execModalTitle">Execution Detail</h5>
+                    <small class="text-muted" id="execModalSubtitle"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Tab nav -->
+            <div class="px-3 pt-2 border-bottom">
+                <ul class="nav nav-tabs border-0" id="execTabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="tabLogBtn" href="#"
+                            onclick="monitor.switchExecTab('log'); return false;">
+                            <i class="fas fa-terminal me-1"></i>Log
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tabOutputBtn" href="#"
+                            onclick="monitor.switchExecTab('output'); return false;">
+                            <i class="fas fa-table me-1"></i>Query Output
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="modal-body p-0">
+                <!-- LOG TAB -->
+                <div id="execTabLog" class="p-3">
+                    <div id="execDetailBody">—</div>
+                </div>
+
+                <!-- OUTPUT TAB -->
+                <div id="execTabOutput" style="display:none" class="p-3">
+                    <div id="execOutputBody">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-table fa-2x mb-3 d-block" style="opacity:.3"></i>
+                            Click <strong>Load Output</strong> to fetch the query results.
+                        </div>
+                    </div>
+                    <div class="mt-2 text-center" id="execOutputLoadWrap">
+                        <button class="btn btn-sm btn-outline-primary" id="execOutputLoadBtn"
+                            onclick="monitor.loadOutput()">
+                            <i class="fas fa-download me-1"></i>Load Output
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/jobs.css') }}">
+<style>
+    /* ── Output panel styles ── */
+    .output-section {
+        margin-bottom: 20px;
+    }
+
+    .output-section-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--color-text-tertiary, #9ca3af);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .output-sql-block {
+        background: #1e1e2e;
+        color: #cdd6f4;
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        overflow-x: auto;
+        white-space: pre-wrap;
+    }
+
+    .output-table-wrap {
+        overflow-x: auto;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        max-height: 380px;
+        overflow-y: auto;
+    }
+
+    .output-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .output-table thead th {
+        background: #f8f9fa;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 8px 12px;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .output-table tbody td {
+        padding: 6px 12px;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: top;
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .output-table tbody tr:hover td {
+        background: #f9fafb;
+    }
+
+    .output-table .null-val {
+        color: #9ca3af;
+        font-style: italic;
+    }
+
+    .output-table .num-val {
+        font-variant-numeric: tabular-nums;
+    }
+
+    .insight-box {
+        background: #f8f6f6;
+        border-left: 3px solid #6366f1;
+        border-radius: 0 8px 8px 0;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #374151;
+    }
+
+    .analysis-box {
+        background: #fafafa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 14px 18px;
+        font-size: 13px;
+        line-height: 1.8;
+        color: #374151;
+    }
+
+    .analysis-box strong {
+        color: #111827;
+    }
+
+    .truncated-note {
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        color: #92400e;
+        margin-bottom: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/jobs.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => { monitor.init(); });
+</script>
+{% endblock %}
