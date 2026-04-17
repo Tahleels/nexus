@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 portrait; margin: 12mm 11mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #1a1f2b; font-size: 10.5px; line-height: 1.4;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+  /* cover */
+  .cover { text-align: center; padding-top: 60px; }
+  .cover .kicker { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: #2563eb; font-weight: 700; }
+  .cover h1 { font-size: 32px; font-weight: 820; letter-spacing: -0.6px; margin-top: 10px; color: #11141a; }
+  .cover .lead { font-size: 12.5px; color: #6b7480; margin-top: 12px; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+  .cover .rule { width: 64px; height: 4px; background: #2563eb; margin: 20px auto; border-radius: 2px; }
+  .cover .meta { margin-top: 26px; font-size: 9.5px; color: #8a93a0; }
+  .cover .chips { margin-top: 30px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chip { font-size: 9px; font-weight: 600; padding: 5px 11px; border-radius: 20px; background: #f1f4f8; color: #475569; border: 1px solid #e2e8f0; }
+  .chip.b { background:#e7eefe; color:#1d4ed8; border-color:#c7d8fb;}
+  .chip.t { background:#d9f3ef; color:#0c7d70; border-color:#aee5dc;}
+  .chip.v { background:#f3f0ff; color:#5b34d6; border-color:#ddd2ff;}
+
+  /* page */
+  .page { page-break-before: always; }
+  .phead { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .pnum { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; background: #11141a; color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .phead h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: #11141a; }
+  .phead p { font-size: 10px; color: #6b7480; margin-top: 2px; }
+  .flow-svg { width: 100%; height: auto; display: block; }
+
+  .caption { margin-top: 12px; font-size: 9.3px; color: #5a6470; background: #f7f8fb; border: 1px solid #e6eaf0; border-left: 3px solid #2563eb; border-radius: 8px; padding: 9px 12px; }
+  .caption b { color: #2a3340; }
+
+  /* compact reference table */
+  table.ref { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 8.8px; }
+  table.ref th { text-align: left; background: #11141a; color: #fff; padding: 5px 8px; font-weight: 700; font-size: 8.2px; letter-spacing: 0.3px; }
+  table.ref td { padding: 4.5px 8px; border-bottom: 1px solid #eceff3; vertical-align: top; }
+  table.ref tr:nth-child(even) td { background: #fafbfc; }
+  table.ref td.k { font-family: ui-monospace, Menlo, Consolas, monospace; color: #1d4ed8; white-space: nowrap; }
+  .tbl-title { font-size: 10px; font-weight: 750; color: #2a3340; margin-top: 14px; margin-bottom: 2px; }
+
+  .pfoot { margin-top: 14px; text-align: center; font-size: 8px; color: #aab3bf; letter-spacing: 0.4px; }
+
+  .twocol { display: flex; gap: 12px; }
+  .twocol > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="kicker">Nexus &middot; Technical Reference</div>
+  <h1>RAG System &mdash; Pipeline Flow</h1>
+  <div class="rule"></div>
+  <div class="lead">A visual walkthrough of the Retrieval-Augmented Generation pipeline: ingestion, chunking, LanceDB vector storage, hybrid retrieval, confidence scoring, the hallucination guard, and access control.</div>
+  <div class="chips">
+    <span class="chip v">Ingestion &middot; 5 sources</span>
+    <span class="chip t">LanceDB + Azure AI Search</span>
+    <span class="chip b">Hybrid retrieval &middot; rerank</span>
+    <span class="chip">Confidence &amp; guard</span>
+    <span class="chip">SQL Server metadata</span>
+  </div>
+  <div class="meta">Verified against code on 2026-06-29 &middot; DB: <span class="mono">nexus</span> &middot; embed: <span class="mono">all-MiniLM-L6-v2 (384-d)</span></div>
+</div>
+
+<!-- ===================== PAGE 1 — ARCHITECTURE ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">01</div>
+    <div><h2>System Architecture &mdash; Two Phases, Shared Stores</h2>
+    <p>Ingestion writes vectors to LanceDB and metadata to SQL Server; query-time reads from both.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 770" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m1" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <!-- INGEST label -->
+    <text x="20" y="24" font-size="10" font-weight="800" fill="#5b34d6" letter-spacing="1.5">&#9312; INGEST TIME</text>
+
+    <!-- sources -->
+    <rect x="18" y="44" width="196" height="176" rx="12" fill="#f3f0ff" stroke="#7c4dff" stroke-width="2"/>
+    <text x="116" y="66" text-anchor="middle" font-size="11" font-weight="800" fill="#5b34d6">Ingestion Sources</text>
+    <text x="32" y="90"  font-size="8.6" fill="#5a5570" font-family="ui-monospace,Menlo,Consolas,monospace">&#8226; UI upload &mdash; /upload</text>
+    <text x="32" y="108" font-size="8.6" fill="#5a5570" font-family="ui-monospace,Menlo,Consolas,monospace">&#8226; version &mdash; /.../version</text>
+    <text x="32" y="126" font-size="8.6" fill="#5a5570" font-family="ui-monospace,Menlo,Consolas,monospace">&#8226; chat attach (tool)</text>
+    <text x="32" y="144" font-size="8.6" fill="#5a5570" font-family="ui-monospace,Menlo,Consolas,monospace">&#8226; filesystem watcher</text>
+    <text x="32" y="162" font-size="8.6" fill="#5a5570" font-family="ui-monospace,Menlo,Consolas,monospace">&#8226; SharePoint watcher</text>
+    <text x="116" y="198" text-anchor="middle" font-size="8" fill="#8a85a0">&#8594; one process_document() entry</text>
+
+    <!-- process_document -->
+    <rect x="262" y="58" width="196" height="152" rx="12" fill="#e9f0ff" stroke="#2f6fed" stroke-width="2"/>
+    <text x="360" y="80" text-anchor="middle" font-size="11" font-weight="800" fill="#1f57c9" font-family="ui-monospace,Menlo,Consolas,monospace">process_document()</text>
+    <text x="278" y="101" font-size="8.6" fill="#2c4a78">1  SHA-256 &#8594; dedup</text>
+    <text x="278" y="118" font-size="8.6" fill="#2c4a78">2  extract &middot; 12 formats</text>
+    <text x="278" y="135" font-size="8.6" fill="#2c4a78">3  chunk 2000 / 200 ovlp</text>
+    <text x="278" y="152" font-size="8.6" fill="#2c4a78">4  key-metrics (LLM, opt)</text>
+    <text x="278" y="169" font-size="8.6" fill="#2c4a78">5  add_chunks &#8594; vectors</text>
+    <text x="278" y="186" font-size="8.6" fill="#2c4a78">6  save meta (MERGE)</text>
+    <text x="360" y="203" text-anchor="middle" font-size="7.6" fill="#5573a8">returns {doc_id, chunk_count, ...}</text>
+
+    <!-- stores -->
+    <rect x="506" y="52" width="196" height="86" rx="11" fill="#d9f3ef" stroke="#11a594" stroke-width="2"/>
+    <text x="604" y="73" text-anchor="middle" font-size="11" font-weight="800" fill="#0c7d70">LanceDB</text>
+    <text x="604" y="90" text-anchor="middle" font-size="8.2" fill="#0c7d70" font-family="ui-monospace,Menlo,Consolas,monospace">document_chunks.lance</text>
+    <text x="604" y="106" text-anchor="middle" font-size="8.2" fill="#2f6b62">384-d vectors &middot; HNSW &#8805;256</text>
+    <text x="604" y="122" text-anchor="middle" font-size="8.2" fill="#2f6b62">single writer thread</text>
+
+    <rect x="506" y="150" width="196" height="80" rx="11" fill="#eef1f6" stroke="#64748b" stroke-width="1.6"/>
+    <text x="604" y="170" text-anchor="middle" font-size="11" font-weight="800" fill="#475569">SQL Server</text>
+    <text x="604" y="186" text-anchor="middle" font-size="8.2" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">nexus</text>
+    <text x="604" y="202" text-anchor="middle" font-size="8" fill="#5b6776">metadata &middot; cache &middot; traces</text>
+    <text x="604" y="217" text-anchor="middle" font-size="8" fill="#5b6776">KV store &middot; access control</text>
+
+    <!-- ingest arrows -->
+    <path d="M214,132 H258" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+    <path d="M458,108 H502" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+    <text x="480" y="100" text-anchor="middle" font-size="7" fill="#8a93a0">add_chunks</text>
+    <path d="M458,168 C480,168 484,186 502,186" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+    <text x="482" y="160" text-anchor="middle" font-size="7" fill="#8a93a0">save_meta</text>
+
+    <!-- divider -->
+    <line x1="20" y1="262" x2="285" y2="262" stroke="#cbd2db" stroke-width="1.4" stroke-dasharray="4 4"/>
+    <line x1="435" y1="262" x2="700" y2="262" stroke="#cbd2db" stroke-width="1.4" stroke-dasharray="4 4"/>
+    <text x="360" y="266" text-anchor="middle" font-size="10" font-weight="800" fill="#1d4ed8" letter-spacing="1.5">&#9313; QUERY TIME</text>
+
+    <!-- agent tool -->
+    <rect x="18" y="318" width="184" height="78" rx="11" fill="#e7eefe" stroke="#2563eb" stroke-width="2"/>
+    <text x="110" y="340" text-anchor="middle" font-size="10" font-weight="800" fill="#1d4ed8" font-family="ui-monospace,Menlo,Consolas,monospace">search_knowledge</text>
+    <text x="110" y="358" text-anchor="middle" font-size="8.2" fill="#2c4a78">agent tool (registry.py)</text>
+    <text x="110" y="375" text-anchor="middle" font-size="8" fill="#4b6aa0">+ search_connector_knowledge</text>
+
+    <!-- pipeline -->
+    <rect x="234" y="296" width="246" height="214" rx="12" fill="#eef4ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="357" y="318" text-anchor="middle" font-size="11" font-weight="800" fill="#1d4ed8" font-family="ui-monospace,Menlo,Consolas,monospace">RAGPipeline.run()</text>
+    <text x="248" y="339" font-size="8.3" fill="#28406e">0  access filter (doc_ids)</text>
+    <text x="248" y="356" font-size="8.3" fill="#28406e">1  cache check &middot; 5-min TTL</text>
+    <text x="248" y="373" font-size="8.3" fill="#28406e">2a ANN top-20 (LanceDB)</text>
+    <text x="248" y="390" font-size="8.3" fill="#28406e">2b BM25 on those 20</text>
+    <text x="248" y="407" font-size="8.3" fill="#28406e">2c hybrid 0.6&middot;sem + 0.4&middot;bm25</text>
+    <text x="248" y="424" font-size="8.3" fill="#28406e">3  cross-encoder rerank</text>
+    <text x="248" y="441" font-size="8.3" fill="#28406e">4  confidence score</text>
+    <text x="248" y="458" font-size="8.3" fill="#28406e">5  guard: max &lt; 0.20 &#8594; fallback</text>
+    <text x="248" y="475" font-size="8.3" fill="#28406e">6  build context [Source N]</text>
+    <text x="248" y="492" font-size="8.3" fill="#28406e">7 session mem &middot; 8 cache+trace</text>
+
+    <!-- context + llm -->
+    <rect x="506" y="300" width="196" height="78" rx="11" fill="#fdedcf" stroke="#e6b552" stroke-width="2"/>
+    <text x="604" y="322" text-anchor="middle" font-size="10" font-weight="800" fill="#8a5a08">Context Block</text>
+    <text x="604" y="340" text-anchor="middle" font-size="7.8" fill="#8a5a08" font-family="ui-monospace,Menlo,Consolas,monospace">[Source N | Conf x.xx]</text>
+    <text x="604" y="357" text-anchor="middle" font-size="8" fill="#97732f">+ citations &middot; confidence</text>
+    <text x="604" y="372" text-anchor="middle" font-size="8" fill="#97732f">+ session_context</text>
+
+    <rect x="506" y="402" width="196" height="78" rx="11" fill="#e9f8ef" stroke="#1e8e4e" stroke-width="2"/>
+    <text x="604" y="424" text-anchor="middle" font-size="10" font-weight="800" fill="#1e7e46">LLM Answer</text>
+    <text x="604" y="442" text-anchor="middle" font-size="8.2" fill="#2f6b46">answers ONLY from context</text>
+    <text x="604" y="459" text-anchor="middle" font-size="8.2" fill="#2f6b46">cites [Source N]</text>
+
+    <!-- query arrows -->
+    <path d="M202,357 H230" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+    <path d="M480,330 H502" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+    <path d="M604,378 V398" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m1)"/>
+
+    <!-- dashed reads from pipeline to stores -->
+    <path d="M480,380 C540,380 560,250 560,236" fill="none" stroke="#b7c0cc" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#m1)"/>
+    <text x="566" y="270" font-size="7" fill="#9aa4b1">reads vectors + meta</text>
+  </svg>
+
+  <div class="caption"><b>One call, many doors.</b> Every ingestion source converges on <span class="mono">process_document()</span>, which embeds chunks into LanceDB and upserts metadata into SQL Server. At query time <span class="mono">RAGPipeline.run()</span> reads both stores, assembles a cited context block, and hands it to the LLM with a strict "answer only from context" instruction.</div>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 1</div>
+</div>
+
+<!-- ===================== PAGE 2 — INGESTION ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">02</div>
+    <div><h2>Ingestion &mdash; <span class="mono" style="font-size:15px">process_document()</span></h2>
+    <p>From raw bytes to persisted, embedded chunks. Dedup is keyed on content + owner + scope.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 858" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m2" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <!-- edges -->
+    <path d="M360,48 V70"  fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M360,118 V140" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M360,188 V196" fill="none" stroke="#9aa4b1" stroke-width="2"/>
+    <!-- dedup diamond edges -->
+    <path d="M470,252 H560 V288" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M360,308 V332" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M560,322 C560,340 470,348 414,355" fill="none" stroke="#27ae60" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <!-- extractor -->
+    <path d="M360,388 V410" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <!-- text? diamond -->
+    <path d="M250,440 H120 V470" fill="none" stroke="#c0392b" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M360,486 V512" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <!-- chunk -->
+    <path d="M360,564 V584" fill="none" stroke="#9aa4b1" stroke-width="2"/>
+    <!-- keymetrics diamond -->
+    <path d="M468,614 H560 V642" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <path d="M560,700 C560,716 460,720 414,722" fill="none" stroke="#d9a441" stroke-width="1.6" stroke-dasharray="4 3"/>
+    <path d="M360,656 V690" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <!-- add_chunks -->
+    <path d="M360,742 V764" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+    <!-- save meta -->
+    <path d="M360,810 V820" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m2)"/>
+
+    <!-- start -->
+    <rect x="196" y="8" width="328" height="40" rx="20" fill="#11141a"/>
+    <text x="360" y="33" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,monospace">file_path + scope, uploader, watch info</text>
+
+    <!-- step1 -->
+    <rect x="240" y="70" width="240" height="48" rx="9" fill="#fff" stroke="#cfd6e0" stroke-width="1.4"/>
+    <text x="360" y="89" text-anchor="middle" font-size="10" font-weight="700" fill="#2a3340">1 &middot; Resolve path</text>
+    <text x="360" y="105" text-anchor="middle" font-size="8" fill="#6b7480" font-family="ui-monospace,Menlo,Consolas,monospace">abs &mdash; or Data/agent_store/raw_documents</text>
+
+    <!-- step2 -->
+    <rect x="240" y="140" width="240" height="48" rx="9" fill="#fff" stroke="#cfd6e0" stroke-width="1.4"/>
+    <text x="360" y="159" text-anchor="middle" font-size="10" font-weight="700" fill="#2a3340">2 &middot; SHA-256 hash</text>
+    <text x="360" y="175" text-anchor="middle" font-size="8" fill="#6b7480">16-hex-char truncation &#8594; dedup key</text>
+
+    <!-- dedup diamond -->
+    <polygon points="360,196 470,252 360,308 250,252" fill="#fff" stroke="#7c4dff" stroke-width="2"/>
+    <text x="360" y="246" text-anchor="middle" font-size="8.6" font-weight="700" fill="#5b34d6">existing doc for</text>
+    <text x="360" y="259" text-anchor="middle" font-size="7.8" fill="#5b34d6" font-family="ui-monospace,Menlo,Consolas,monospace">(hash, uploader, scope, id)?</text>
+    <!-- reuse box -->
+    <rect x="540" y="288" width="170" height="40" rx="9" fill="#e9f8ef" stroke="#27ae60" stroke-width="1.6"/>
+    <text x="625" y="304" text-anchor="middle" font-size="8.8" font-weight="700" fill="#1e7e46">YES &#8594; reuse doc_id</text>
+    <text x="625" y="318" text-anchor="middle" font-size="7.8" fill="#2f6b46">refresh in place (no dup)</text>
+    <text x="500" y="246" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <text x="372" y="326" font-size="8" font-weight="700" fill="#9aa4b1">NO &#8594; new doc_id</text>
+
+    <!-- step3 extractor -->
+    <rect x="210" y="332" width="300" height="56" rx="9" fill="#e9f0ff" stroke="#2f6fed" stroke-width="1.8"/>
+    <text x="360" y="353" text-anchor="middle" font-size="10" font-weight="800" fill="#1f57c9">3 &middot; Extractor dispatch by extension</text>
+    <text x="360" y="370" text-anchor="middle" font-size="8.2" fill="#2c4a78">12 formats &#8594; (text, extra_meta) &middot; map below</text>
+    <text x="360" y="383" text-anchor="middle" font-size="7.6" fill="#5573a8">.doc &#8594; win32com &#8594; LibreOffice &#8594; docx2txt</text>
+
+    <!-- text? diamond -->
+    <polygon points="360,410 450,440 360,470 270,440" fill="#fff" stroke="#d9a441" stroke-width="2"/>
+    <text x="360" y="438" text-anchor="middle" font-size="8.6" font-weight="700" fill="#8a6406">text</text>
+    <text x="360" y="450" text-anchor="middle" font-size="8.6" font-weight="700" fill="#8a6406">extracted?</text>
+    <rect x="30" y="470" width="180" height="44" rx="9" fill="#fdecea" stroke="#c0392b" stroke-width="1.6"/>
+    <text x="120" y="488" text-anchor="middle" font-size="8.8" font-weight="700" fill="#a5281b">NO &#8594; return error</text>
+    <text x="120" y="503" text-anchor="middle" font-size="7.6" fill="#a5281b" font-family="ui-monospace,Menlo,Consolas,monospace">{success:false}</text>
+    <text x="246" y="430" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+    <text x="372" y="500" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+
+    <!-- step4 chunk -->
+    <rect x="218" y="512" width="284" height="52" rx="9" fill="#fff" stroke="#cfd6e0" stroke-width="1.4"/>
+    <text x="360" y="532" text-anchor="middle" font-size="10" font-weight="700" fill="#2a3340">4 &middot; _chunk_text() &mdash; 2000 / 200 overlap</text>
+    <text x="360" y="549" text-anchor="middle" font-size="8" fill="#6b7480">break preference: paragraph &#8594; sentence &#8594; word</text>
+
+    <!-- key metrics diamond -->
+    <polygon points="360,584 468,614 360,656 252,614" fill="#fff" stroke="#d9a441" stroke-width="2"/>
+    <text x="360" y="611" text-anchor="middle" font-size="8.6" font-weight="700" fill="#8a6406">key_metrics</text>
+    <text x="360" y="623" text-anchor="middle" font-size="8.6" font-weight="700" fill="#8a6406">requested?</text>
+    <rect x="540" y="642" width="170" height="58" rx="9" fill="#fdedcf" stroke="#e6b552" stroke-width="1.6"/>
+    <text x="625" y="661" text-anchor="middle" font-size="8.6" font-weight="700" fill="#8a5a08">YES &#8594; LLM extract</text>
+    <text x="625" y="676" text-anchor="middle" font-size="7.6" fill="#97732f" font-family="ui-monospace,Menlo,Consolas,monospace">gpt-4o-mini, temp 0</text>
+    <text x="625" y="690" text-anchor="middle" font-size="7.6" fill="#97732f">&#8594; extra_meta.metrics</text>
+    <text x="474" y="608" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <text x="372" y="676" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+
+    <!-- step5 add_chunks -->
+    <rect x="210" y="690" width="300" height="52" rx="9" fill="#d9f3ef" stroke="#11a594" stroke-width="1.8"/>
+    <text x="360" y="710" text-anchor="middle" font-size="10" font-weight="800" fill="#0c7d70">5 &middot; add_chunks() &#8594; embed + persist</text>
+    <text x="360" y="727" text-anchor="middle" font-size="8" fill="#2f6b62">MiniLM 384-d, batch 32 &#8594; LanceDB writer thread</text>
+
+    <!-- step6 save meta -->
+    <rect x="210" y="764" width="300" height="46" rx="9" fill="#eef1f6" stroke="#64748b" stroke-width="1.6"/>
+    <text x="360" y="783" text-anchor="middle" font-size="10" font-weight="700" fill="#475569">6 &middot; _save_doc_meta() &mdash; MERGE upsert</text>
+    <text x="360" y="799" text-anchor="middle" font-size="8" fill="#5b6776" font-family="ui-monospace,Menlo,Consolas,monospace">app_documents (SQL Server)</text>
+
+    <!-- end -->
+    <rect x="208" y="820" width="304" height="36" rx="18" fill="#1e8e4e"/>
+    <text x="360" y="843" text-anchor="middle" font-size="9.6" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,monospace">{document_id, chunk_count, text_length, ...}</text>
+  </svg>
+
+  <div class="tbl-title">Extractor map &mdash; <span class="mono">_EXTRACTOR_MAP</span> (12 format groups)</div>
+  <table class="ref">
+    <tr><th style="width:22%">Extension(s)</th><th style="width:24%">Library</th><th>Notes</th></tr>
+    <tr><td class="k">.pdf</td><td>pdfplumber</td><td>per-page text, records page_count</td></tr>
+    <tr><td class="k">.docx</td><td>python-docx</td><td>paragraphs + table cells</td></tr>
+    <tr><td class="k">.doc</td><td>win32com &#8594; LibreOffice &#8594; docx2txt</td><td>3-stage legacy fallback chain</td></tr>
+    <tr><td class="k">.xlsx .xls .xlsm</td><td>pandas</td><td>first 10 sheets, 500 rows each</td></tr>
+    <tr><td class="k">.csv</td><td>pandas</td><td>utf-8-sig &#8594; utf-8 &#8594; latin-1 &#8594; cp1252; 1000 rows</td></tr>
+    <tr><td class="k">.pptx .ppt</td><td>python-pptx</td><td>shape text per slide, labeled Slide N</td></tr>
+    <tr><td class="k">.html .htm</td><td>beautifulsoup4</td><td>strips script/style/nav/footer/header</td></tr>
+    <tr><td class="k">.eml</td><td>stdlib email</td><td>subject/from/date + first text/plain</td></tr>
+    <tr><td class="k">.msg</td><td>extract-msg</td><td>Outlook message extraction</td></tr>
+    <tr><td class="k">.png .jpg .tiff .bmp</td><td>easyocr (CPU)</td><td>optional dep, soft-fails if missing</td></tr>
+    <tr><td class="k">.txt .md</td><td>stdlib</td><td>direct read, errors="replace"</td></tr>
+    <tr><td class="k">.json</td><td>stdlib</td><td>re-serialized with indent=2</td></tr>
+  </table>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 2</div>
+</div>
+
+<!-- ===================== PAGE 3 — VECTOR STORAGE ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">03</div>
+    <div><h2>Vector Storage &mdash; Backends &amp; the Single-Writer Thread</h2>
+    <p>LanceDB is the default required backend; Azure AI Search takes over if its env vars are set.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 710" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m3" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <!-- backend selection -->
+    <text x="20" y="20" font-size="9.5" font-weight="800" fill="#475569" letter-spacing="1.2">BACKEND SELECTION &mdash; get_vector_store()</text>
+    <rect x="270" y="30" width="180" height="38" rx="19" fill="#11141a"/>
+    <text x="360" y="54" text-anchor="middle" font-size="9.6" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,monospace">get_vector_store()</text>
+    <path d="M360,68 V88" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+
+    <polygon points="360,88 500,138 360,188 220,138" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+    <text x="360" y="134" text-anchor="middle" font-size="8.6" font-weight="700" fill="#1d4ed8">AZURE_SEARCH_ENDPOINT</text>
+    <text x="360" y="147" text-anchor="middle" font-size="8.6" font-weight="700" fill="#1d4ed8">&amp; _KEY set?</text>
+
+    <path d="M500,138 H560 V160" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+    <text x="506" y="132" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <rect x="475" y="160" width="225" height="56" rx="10" fill="#e7eefe" stroke="#2563eb" stroke-width="1.8"/>
+    <text x="587" y="181" text-anchor="middle" font-size="9.6" font-weight="800" fill="#1d4ed8">Azure AI Search</text>
+    <text x="587" y="197" text-anchor="middle" font-size="8" fill="#2c4a78">HNSW profile &middot; 2 indexes</text>
+    <text x="587" y="210" text-anchor="middle" font-size="7.6" fill="#4b6aa0">documents + knowledge</text>
+
+    <path d="M360,188 V214" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+    <text x="372" y="206" font-size="8" font-weight="700" fill="#9aa4b1">NO (default)</text>
+    <rect x="250" y="214" width="220" height="54" rx="10" fill="#d9f3ef" stroke="#11a594" stroke-width="2"/>
+    <text x="360" y="235" text-anchor="middle" font-size="9.8" font-weight="800" fill="#0c7d70">LanceDB &mdash; required dep</text>
+    <text x="360" y="251" text-anchor="middle" font-size="7.8" fill="#2f6b62">RuntimeError if lancedb missing</text>
+    <text x="360" y="263" text-anchor="middle" font-size="7.8" fill="#2f6b62">(SQL is no longer a vector fallback)</text>
+
+    <!-- writer model -->
+    <line x1="20" y1="296" x2="700" y2="296" stroke="#e6eaf0" stroke-width="1.2"/>
+    <text x="20" y="316" font-size="9.5" font-weight="800" fill="#0c7d70" letter-spacing="1.2">LANCEDB WRITE PATH &mdash; serialized through one thread</text>
+
+    <!-- callers -->
+    <rect x="20" y="334" width="150" height="40" rx="9" fill="#fff" stroke="#11a594" stroke-width="1.5"/>
+    <text x="95" y="358" text-anchor="middle" font-size="8.6" font-weight="700" fill="#0c7d70" font-family="ui-monospace,Menlo,Consolas,monospace">add_chunks</text>
+    <rect x="20" y="382" width="150" height="40" rx="9" fill="#fff" stroke="#11a594" stroke-width="1.5"/>
+    <text x="95" y="406" text-anchor="middle" font-size="8.6" font-weight="700" fill="#0c7d70" font-family="ui-monospace,Menlo,Consolas,monospace">delete_document</text>
+    <rect x="20" y="430" width="150" height="40" rx="9" fill="#fff" stroke="#11a594" stroke-width="1.5"/>
+    <text x="95" y="454" text-anchor="middle" font-size="8.6" font-weight="700" fill="#0c7d70" font-family="ui-monospace,Menlo,Consolas,monospace">migrate_from_sql</text>
+
+    <path d="M170,354 C200,354 200,402 228,402" fill="none" stroke="#9aa4b1" stroke-width="2"/>
+    <path d="M170,402 H228" fill="none" stroke="#9aa4b1" stroke-width="2"/>
+    <path d="M170,450 C200,450 200,402 228,402" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+
+    <!-- queue -->
+    <rect x="230" y="378" width="148" height="48" rx="9" fill="#fef6e7" stroke="#d9a441" stroke-width="1.8"/>
+    <text x="304" y="398" text-anchor="middle" font-size="9" font-weight="800" fill="#8a6406">Write Queue</text>
+    <text x="304" y="414" text-anchor="middle" font-size="8" fill="#97732f" font-family="ui-monospace,Menlo,Consolas,monospace">_WriteJob (one at a time)</text>
+    <path d="M378,402 H410" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+
+    <!-- writer thread -->
+    <rect x="412" y="372" width="150" height="60" rx="9" fill="#d9f3ef" stroke="#11a594" stroke-width="2"/>
+    <text x="487" y="392" text-anchor="middle" font-size="9" font-weight="800" fill="#0c7d70">Writer Thread</text>
+    <text x="487" y="408" text-anchor="middle" font-size="7.8" fill="#2f6b62" font-family="ui-monospace,Menlo,Consolas,monospace">_writer_loop</text>
+    <text x="487" y="422" text-anchor="middle" font-size="7.6" fill="#2f6b62">callers block on job.done</text>
+    <path d="M562,402 H596" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m3)"/>
+
+    <!-- lance store -->
+    <path d="M598,378 h92 a6,6 0 0 1 6,6 v36 a6,6 0 0 1 -6,6 h-92 a6,6 0 0 1 -6,-6 v-36 a6,6 0 0 1 6,-6 z" fill="#0c7d70"/>
+    <text x="644" y="396" text-anchor="middle" font-size="8.4" font-weight="800" fill="#fff">.lance table</text>
+    <text x="644" y="410" text-anchor="middle" font-size="7" fill="#cdeee8" font-family="ui-monospace,Menlo,Consolas,monospace">document_chunks</text>
+    <text x="644" y="421" text-anchor="middle" font-size="7" fill="#cdeee8">PyArrow &middot; 384-d</text>
+
+    <!-- index note -->
+    <rect x="230" y="452" width="466" height="40" rx="9" fill="#f7f8fb" stroke="#cfd6e0" stroke-width="1.3"/>
+    <text x="463" y="470" text-anchor="middle" font-size="8.6" font-weight="700" fill="#2a3340">_maybe_index(): cosine IVF_PQ / HNSW built once table &#8805; 256 rows</text>
+    <text x="463" y="484" text-anchor="middle" font-size="8" fill="#6b7480">below threshold &#8594; brute-force search (same accuracy); re-index after each add</text>
+
+    <!-- search + sql -->
+    <line x1="20" y1="520" x2="700" y2="520" stroke="#e6eaf0" stroke-width="1.2"/>
+    <rect x="20" y="538" width="330" height="150" rx="10" fill="#eef4ff" stroke="#2563eb" stroke-width="1.6"/>
+    <text x="185" y="560" text-anchor="middle" font-size="9.6" font-weight="800" fill="#1d4ed8">search_documents()</text>
+    <text x="36" y="582" font-size="8.4" fill="#28406e" font-family="ui-monospace,Menlo,Consolas,monospace">.search(q_emb)</text>
+    <text x="36" y="600" font-size="8.4" fill="#28406e" font-family="ui-monospace,Menlo,Consolas,monospace">.metric("cosine").limit(n)</text>
+    <text x="36" y="624" font-size="8.4" fill="#28406e">prefilter=True &#8594; WHERE document_id</text>
+    <text x="36" y="638" font-size="8.4" fill="#28406e">IN (visible doc_ids)</text>
+    <text x="36" y="662" font-size="8" fill="#4b6aa0">targets stay reachable regardless of</text>
+    <text x="36" y="675" font-size="8" fill="#4b6aa0">corpus size &middot; similarity = 1 &minus; distance</text>
+
+    <rect x="370" y="538" width="330" height="150" rx="10" fill="#eef1f6" stroke="#64748b" stroke-width="1.6"/>
+    <text x="535" y="560" text-anchor="middle" font-size="9.6" font-weight="800" fill="#475569">SQL Server still holds</text>
+    <text x="386" y="582" font-size="8.6" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">app_documents &mdash; metadata</text>
+    <text x="386" y="600" font-size="8.6" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">app_document_assignments</text>
+    <text x="386" y="618" font-size="8.6" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">app_knowledge_store &mdash; KV</text>
+    <text x="386" y="636" font-size="8.6" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">app_search_cache</text>
+    <text x="386" y="654" font-size="8.6" fill="#475569" font-family="ui-monospace,Menlo,Consolas,monospace">app_retrieval_traces</text>
+    <text x="386" y="676" font-size="8" fill="#5b6776">KV path uses brute-force cosine (small set)</text>
+  </svg>
+
+  <div class="caption"><b>Why a single writer?</b> LanceDB is not safe for concurrent writers across threads/processes, so every mutation is queued as a <span class="mono">_WriteJob</span> to one background thread and the caller blocks until it completes. All three backends (LanceDB, Azure, legacy SQL) expose an identical method surface, so switching backends needs no changes outside <span class="mono">vector_store.py</span>.</div>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 3</div>
+</div>
+
+<!-- ===================== PAGE 4 — RETRIEVAL ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">04</div>
+    <div><h2>Retrieval Pipeline &mdash; <span class="mono" style="font-size:15px">RAGPipeline.run()</span></h2>
+    <p>Access filter &#8594; cache &#8594; hybrid retrieve + rerank &#8594; confidence &#8594; guard &#8594; cited context.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 762" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m4" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <!-- edges -->
+    <path d="M360,48 V72"  fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,120 V146" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M470,178 H580 V206" fill="none" stroke="#27ae60" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,210 V250" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,324 V348" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,392 V414" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,472 V498" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M250,524 H120 V550" fill="none" stroke="#c0392b" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,550 V578" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+    <path d="M360,644 V668" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m4)"/>
+
+    <!-- start -->
+    <rect x="170" y="8" width="380" height="40" rx="20" fill="#11141a"/>
+    <text x="360" y="33" text-anchor="middle" font-size="9.4" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,monospace">run(query, user_id, session_id, doc_ids, pinned_doc_ids)</text>
+
+    <!-- step0 access -->
+    <rect x="220" y="72" width="280" height="48" rx="9" fill="#f3f0ff" stroke="#7c4dff" stroke-width="1.8"/>
+    <text x="360" y="91" text-anchor="middle" font-size="9.6" font-weight="800" fill="#5b34d6">0 &middot; Access filter &mdash; get_visible_doc_ids</text>
+    <text x="360" y="108" text-anchor="middle" font-size="8" fill="#6b5a90">admin / dev &#8594; None (all) &middot; else union of visible scopes</text>
+
+    <!-- cache diamond -->
+    <polygon points="360,146 470,178 360,210 250,178" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+    <text x="360" y="175" text-anchor="middle" font-size="8.6" font-weight="700" fill="#1d4ed8">cache hit &amp;</text>
+    <text x="360" y="187" text-anchor="middle" font-size="8.6" font-weight="700" fill="#1d4ed8">&lt; 5 min?</text>
+    <rect x="495" y="206" width="200" height="42" rx="9" fill="#e9f8ef" stroke="#27ae60" stroke-width="1.6"/>
+    <text x="595" y="224" text-anchor="middle" font-size="9" font-weight="700" fill="#1e7e46">YES &#8594; return cached</text>
+    <text x="595" y="238" text-anchor="middle" font-size="7.6" fill="#2f6b46" font-family="ui-monospace,Menlo,Consolas,monospace">key = md5(query|user|doc_ids)</text>
+    <text x="476" y="172" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <text x="370" y="228" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+
+    <!-- step2 hybrid -->
+    <rect x="200" y="250" width="320" height="74" rx="10" fill="#eef4ff" stroke="#2563eb" stroke-width="2"/>
+    <text x="360" y="270" text-anchor="middle" font-size="9.8" font-weight="800" fill="#1d4ed8">2 &middot; Hybrid retrieval</text>
+    <text x="216" y="288" font-size="8.2" fill="#28406e">2a &middot; ANN top-20 &mdash; LanceDB cosine, prefilter doc_ids</text>
+    <text x="216" y="303" font-size="8.2" fill="#28406e">2b &middot; BM25 on those 20 (rank_bm25, TF fallback)</text>
+    <text x="216" y="318" font-size="8.2" fill="#28406e">2c &middot; merge: 0.6&middot;semantic + 0.4&middot;BM25 (RAG_HYBRID_ALPHA)</text>
+
+    <!-- step3 rerank -->
+    <rect x="220" y="348" width="280" height="44" rx="9" fill="#fff" stroke="#cfd6e0" stroke-width="1.4"/>
+    <text x="360" y="367" text-anchor="middle" font-size="9.6" font-weight="700" fill="#2a3340">3 &middot; Cross-encoder rerank</text>
+    <text x="360" y="383" text-anchor="middle" font-size="7.8" fill="#6b7480" font-family="ui-monospace,Menlo,Consolas,monospace">ms-marco-MiniLM-L-6-v2 &middot; soft-fail if absent</text>
+
+    <!-- step4-5 confidence -->
+    <rect x="210" y="414" width="300" height="58" rx="9" fill="#fef6e7" stroke="#d9a441" stroke-width="1.8"/>
+    <text x="360" y="434" text-anchor="middle" font-size="9.6" font-weight="800" fill="#8a6406">4&ndash;5 &middot; Enrich + confidence score</text>
+    <text x="360" y="451" text-anchor="middle" font-size="8" fill="#97732f">fetch created_at &middot; per-chunk confidence (see pg 5)</text>
+    <text x="360" y="464" text-anchor="middle" font-size="7.8" fill="#97732f" font-family="ui-monospace,Menlo,Consolas,monospace">retrieval &#215; trust &#215; freshness &#215; consistency</text>
+
+    <!-- guard diamond -->
+    <polygon points="360,498 460,524 360,550 260,524" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+    <text x="360" y="521" text-anchor="middle" font-size="8.4" font-weight="700" fill="#a5281b">max conf</text>
+    <text x="360" y="533" text-anchor="middle" font-size="8.4" font-weight="700" fill="#a5281b">&lt; 0.20?</text>
+    <rect x="20" y="550" width="200" height="50" rx="9" fill="#fdecea" stroke="#c0392b" stroke-width="1.6"/>
+    <text x="120" y="569" text-anchor="middle" font-size="8.8" font-weight="700" fill="#a5281b">YES &#8594; fallback block</text>
+    <text x="120" y="583" text-anchor="middle" font-size="7.6" fill="#a5281b">no citations &mdash; "say you don't know"</text>
+    <text x="120" y="595" text-anchor="middle" font-size="7.4" fill="#c0392b">pinned docs bypass the guard</text>
+    <text x="234" y="516" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <text x="370" y="570" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+
+    <!-- step6-9 assemble -->
+    <rect x="190" y="578" width="340" height="66" rx="10" fill="#e7eefe" stroke="#2563eb" stroke-width="1.8"/>
+    <text x="360" y="598" text-anchor="middle" font-size="9.6" font-weight="800" fill="#1d4ed8">6&ndash;9 &middot; Assemble + persist</text>
+    <text x="206" y="616" font-size="8.2" fill="#28406e">6 build context [Source N | Conf x.xx] + citations (&#8804;12k chars)</text>
+    <text x="206" y="631" font-size="8.2" fill="#28406e">7 session memory (last 3) &middot; 8&ndash;9 cache write + async trace</text>
+
+    <!-- end -->
+    <rect x="150" y="668" width="420" height="40" rx="20" fill="#1e8e4e"/>
+    <text x="360" y="691" text-anchor="middle" font-size="8.8" font-weight="700" fill="#fff" font-family="ui-monospace,Menlo,Consolas,monospace">{context, citations, confidence, fallback, results, ...}</text>
+  </svg>
+
+  <div class="caption"><b>BM25 runs only on the 20 ANN candidates</b>, not the whole corpus &mdash; keeping the keyword pass cheap. Reranking and BM25 both degrade gracefully: a missing library logs once and is skipped for the rest of the process. A tracing or cache failure never fails the request (bare <span class="mono">try/except</span>).</div>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 4</div>
+</div>
+
+<!-- ===================== PAGE 5 — CONFIDENCE ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">05</div>
+    <div><h2>Confidence Scoring &amp; the Hallucination Guard</h2>
+    <p>A multiplicative score gates whether the LLM answers from evidence or is told to abstain.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 470" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m5" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <!-- factor cards -->
+    <g>
+      <rect x="14" y="16" width="158" height="86" rx="10" fill="#eef4ff" stroke="#2563eb" stroke-width="1.6"/>
+      <text x="93" y="38" text-anchor="middle" font-size="9.4" font-weight="800" fill="#1d4ed8">retrieval_score</text>
+      <text x="93" y="56" text-anchor="middle" font-size="8" fill="#28406e">hybrid / rerank score</text>
+      <text x="93" y="70" text-anchor="middle" font-size="8" fill="#28406e">from steps 2c / 3</text>
+      <text x="93" y="90" text-anchor="middle" font-size="8.6" font-weight="700" fill="#2563eb">range 0 &ndash; 1</text>
+    </g>
+    <text x="186" y="64" text-anchor="middle" font-size="18" font-weight="800" fill="#8a93a0">&#215;</text>
+    <g>
+      <rect x="200" y="16" width="158" height="86" rx="10" fill="#fdedcf" stroke="#e6b552" stroke-width="1.6"/>
+      <text x="279" y="38" text-anchor="middle" font-size="9.4" font-weight="800" fill="#8a5a08">file_trust</text>
+      <text x="279" y="56" text-anchor="middle" font-size="8" fill="#97732f">by extension lookup</text>
+      <text x="279" y="70" text-anchor="middle" font-size="8" fill="#97732f">_FILE_TRUST table</text>
+      <text x="279" y="90" text-anchor="middle" font-size="8.6" font-weight="700" fill="#d9a441">0.40 &ndash; 0.90</text>
+    </g>
+    <text x="372" y="64" text-anchor="middle" font-size="18" font-weight="800" fill="#8a93a0">&#215;</text>
+    <g>
+      <rect x="386" y="16" width="158" height="86" rx="10" fill="#d9f3ef" stroke="#11a594" stroke-width="1.6"/>
+      <text x="465" y="38" text-anchor="middle" font-size="9.4" font-weight="800" fill="#0c7d70">freshness</text>
+      <text x="465" y="56" text-anchor="middle" font-size="8" fill="#2f6b62" font-family="ui-monospace,Menlo,Consolas,monospace">exp(-age/180)</text>
+      <text x="465" y="70" text-anchor="middle" font-size="8" fill="#2f6b62">half-life &#8776; 180 days</text>
+      <text x="465" y="90" text-anchor="middle" font-size="8.6" font-weight="700" fill="#11a594">~0 &ndash; 1</text>
+    </g>
+    <text x="558" y="64" text-anchor="middle" font-size="18" font-weight="800" fill="#8a93a0">&#215;</text>
+    <g>
+      <rect x="572" y="16" width="134" height="86" rx="10" fill="#f3f0ff" stroke="#7c4dff" stroke-width="1.6"/>
+      <text x="639" y="38" text-anchor="middle" font-size="9.2" font-weight="800" fill="#5b34d6">consistency</text>
+      <text x="639" y="56" text-anchor="middle" font-size="7.6" fill="#6b5a90" font-family="ui-monospace,Menlo,Consolas,monospace">0.7+0.3&middot;min(1,</text>
+      <text x="639" y="68" text-anchor="middle" font-size="7.6" fill="#6b5a90" font-family="ui-monospace,Menlo,Consolas,monospace">docs/3)</text>
+      <text x="639" y="90" text-anchor="middle" font-size="8.6" font-weight="700" fill="#7c4dff">0.80 &ndash; 1.00</text>
+    </g>
+
+    <!-- to product -->
+    <path d="M360,102 V128" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m5)"/>
+    <rect x="226" y="128" width="268" height="44" rx="10" fill="#11141a"/>
+    <text x="360" y="148" text-anchor="middle" font-size="9.6" font-weight="800" fill="#fff">confidence = product of all four</text>
+    <text x="360" y="163" text-anchor="middle" font-size="7.8" fill="#cbd2db">computed per chunk &#8594; max across chunks gates fallback</text>
+
+    <!-- gate -->
+    <path d="M360,172 V196" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m5)"/>
+    <polygon points="360,196 470,232 360,268 250,232" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+    <text x="360" y="228" text-anchor="middle" font-size="9" font-weight="700" fill="#a5281b">max confidence</text>
+    <text x="360" y="241" text-anchor="middle" font-size="9" font-weight="700" fill="#a5281b">&#8805; 0.20?</text>
+
+    <path d="M470,232 H600 V268" fill="none" stroke="#27ae60" stroke-width="2" marker-end="url(#m5)"/>
+    <text x="476" y="226" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <rect x="500" y="268" width="200" height="58" rx="10" fill="#e9f8ef" stroke="#1e8e4e" stroke-width="1.8"/>
+    <text x="600" y="289" text-anchor="middle" font-size="9.4" font-weight="800" fill="#1e7e46">Answer from context</text>
+    <text x="600" y="306" text-anchor="middle" font-size="8" fill="#2f6b46">cited [Source N] block</text>
+    <text x="600" y="319" text-anchor="middle" font-size="8" fill="#2f6b46">handed to the LLM</text>
+
+    <path d="M250,232 H120 V268" fill="none" stroke="#c0392b" stroke-width="2" marker-end="url(#m5)"/>
+    <text x="128" y="226" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+    <rect x="20" y="268" width="200" height="58" rx="10" fill="#fdecea" stroke="#c0392b" stroke-width="1.8"/>
+    <text x="120" y="289" text-anchor="middle" font-size="9.4" font-weight="800" fill="#a5281b">Fallback &mdash; abstain</text>
+    <text x="120" y="306" text-anchor="middle" font-size="8" fill="#a5281b">"insufficient evidence"</text>
+    <text x="120" y="319" text-anchor="middle" font-size="8" fill="#a5281b">zero citations</text>
+
+    <!-- pinned bypass -->
+    <rect x="250" y="296" width="220" height="40" rx="9" fill="#fff" stroke="#7c4dff" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text x="360" y="314" text-anchor="middle" font-size="8.6" font-weight="700" fill="#5b34d6">Pinned docs bypass the guard</text>
+    <text x="360" y="328" text-anchor="middle" font-size="7.6" fill="#6b5a90">a user-attached doc is always trusted</text>
+    <path d="M300,336 C300,360 200,344 160,330" fill="none" stroke="#7c4dff" stroke-width="1.3" stroke-dasharray="4 3"/>
+
+    <!-- consistency note -->
+    <text x="360" y="372" text-anchor="middle" font-size="8" fill="#8a93a0">_consistency_score gives a single source 0.33 &mdash; "so it still has a fighting chance" (per code)</text>
+  </svg>
+
+  <div class="twocol">
+    <div>
+      <div class="tbl-title"><span class="mono">_FILE_TRUST</span> by type</div>
+      <table class="ref">
+        <tr><th>Type</th><th>Trust</th></tr>
+        <tr><td class="k">pdf, docx</td><td>0.90</td></tr>
+        <tr><td class="k">doc</td><td>0.85</td></tr>
+        <tr><td class="k">xlsx, xls, xlsm</td><td>0.80</td></tr>
+        <tr><td class="k">pptx</td><td>0.75</td></tr>
+        <tr><td class="k">csv, json, ppt</td><td>0.70</td></tr>
+        <tr><td class="k">txt, md</td><td>0.65</td></tr>
+        <tr><td class="k">eml, msg</td><td>0.60</td></tr>
+        <tr><td class="k">html, htm</td><td>0.55</td></tr>
+        <tr><td class="k">images</td><td>0.40</td></tr>
+        <tr><td class="k">unknown</td><td>0.60</td></tr>
+      </table>
+    </div>
+    <div>
+      <div class="tbl-title">Tunable thresholds</div>
+      <table class="ref">
+        <tr><th>Variable</th><th>Default</th></tr>
+        <tr><td class="k">RAG_HYBRID_ALPHA</td><td>0.6</td></tr>
+        <tr><td class="k">RAG_CONFIDENCE_THRESHOLD</td><td>0.20</td></tr>
+        <tr><td class="k">RAG_CACHE_TTL</td><td>300 s</td></tr>
+        <tr><td class="k">RAG_MAX_CONTEXT_CHARS</td><td>12000</td></tr>
+        <tr><td class="k">_RERANK_TOP_K</td><td>20</td></tr>
+        <tr><td class="k">_MIN_INDEX_ROWS</td><td>256</td></tr>
+        <tr><td class="k">_SESSION_MEMORY_LEN</td><td>3 turns</td></tr>
+        <tr><td class="k">freshness half-life</td><td>180 days</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 5</div>
+</div>
+
+<!-- ===================== PAGE 6 — ACCESS + WATCHERS ===================== -->
+<div class="page">
+  <div class="phead">
+    <div class="pnum">06</div>
+    <div><h2>Access Control &amp; Connector Watchers</h2>
+    <p>Who can see a document, and how filesystem / SharePoint folders auto-ingest into the same pipeline.</p></div>
+  </div>
+
+  <svg viewBox="0 0 720 360" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs><marker id="m6" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+    <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+
+    <text x="20" y="18" font-size="9.5" font-weight="800" fill="#5b34d6" letter-spacing="1.2">get_visible_doc_ids(user_id, role)</text>
+
+    <rect x="270" y="28" width="180" height="38" rx="19" fill="#11141a"/>
+    <text x="360" y="52" text-anchor="middle" font-size="9.4" font-weight="700" fill="#fff">caller: user + role</text>
+    <path d="M360,66 V86" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m6)"/>
+
+    <polygon points="360,86 460,116 360,146 260,116" fill="#fff" stroke="#7c4dff" stroke-width="2"/>
+    <text x="360" y="113" text-anchor="middle" font-size="8.8" font-weight="700" fill="#5b34d6">role = admin</text>
+    <text x="360" y="125" text-anchor="middle" font-size="8.8" font-weight="700" fill="#5b34d6">or dev?</text>
+
+    <path d="M460,116 H600 V148" fill="none" stroke="#27ae60" stroke-width="2" marker-end="url(#m6)"/>
+    <text x="466" y="110" font-size="8" font-weight="700" fill="#9aa4b1">YES</text>
+    <rect x="500" y="148" width="200" height="44" rx="9" fill="#e9f8ef" stroke="#1e8e4e" stroke-width="1.8"/>
+    <text x="600" y="167" text-anchor="middle" font-size="9.4" font-weight="800" fill="#1e7e46">None &#8594; no filter</text>
+    <text x="600" y="183" text-anchor="middle" font-size="8" fill="#2f6b46">sees every document</text>
+
+    <path d="M360,146 V170" fill="none" stroke="#9aa4b1" stroke-width="2" marker-end="url(#m6)"/>
+    <text x="372" y="162" font-size="8" font-weight="700" fill="#9aa4b1">NO</text>
+    <rect x="120" y="170" width="480" height="92" rx="10" fill="#f3f0ff" stroke="#7c4dff" stroke-width="1.8"/>
+    <text x="360" y="190" text-anchor="middle" font-size="9.4" font-weight="800" fill="#5b34d6">else &#8594; UNION of visible documents</text>
+    <text x="136" y="210" font-size="8.4" fill="#5a5570">&#8226; all scope = global docs</text>
+    <text x="136" y="226" font-size="8.4" fill="#5a5570">&#8226; user's own scope = user uploads</text>
+    <text x="136" y="242" font-size="8.4" fill="#5a5570">&#8226; rows in app_document_assignments for this user</text>
+    <text x="136" y="256" font-size="8.4" fill="#5a5570">&#8226; docs in any department / project the user belongs to</text>
+    <text x="360" y="282" text-anchor="middle" font-size="8" fill="#8a85a0">applied as a SQL-level doc_ids set inside search_documents() &mdash; not a post-filter</text>
+    <path d="M360,262 V278" fill="none" stroke="#9aa4b1" stroke-width="1.5"/>
+  </svg>
+
+  <div class="twocol" style="margin-top:6px;">
+    <div>
+      <svg viewBox="0 0 350 360" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="m6a" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+        <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+        <rect x="2" y="2" width="346" height="356" rx="12" fill="#fbfcfe" stroke="#e2e8f0" stroke-width="1.4"/>
+        <text x="175" y="28" text-anchor="middle" font-size="11" font-weight="800" fill="#0c7d70">Filesystem watcher</text>
+        <text x="175" y="43" text-anchor="middle" font-size="8" fill="#6b7480" font-family="ui-monospace,Menlo,Consolas,monospace">document_watcher.py &middot; watchdog</text>
+
+        <rect x="60" y="56" width="230" height="38" rx="8" fill="#fff" stroke="#cfd6e0" stroke-width="1.3"/>
+        <text x="175" y="79" text-anchor="middle" font-size="8.6" fill="#2a3340">new / settled file (3s settle)</text>
+        <path d="M175,94 V112" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6a)"/>
+
+        <rect x="60" y="112" width="230" height="44" rx="8" fill="#fff" stroke="#cfd6e0" stroke-width="1.3"/>
+        <text x="175" y="130" text-anchor="middle" font-size="8.6" fill="#2a3340">skip unsupported ext /</text>
+        <text x="175" y="144" text-anchor="middle" font-size="8" fill="#6b7480" font-family="ui-monospace,Menlo,Consolas,monospace">venv, .git, archive, ...</text>
+        <path d="M175,156 V174" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6a)"/>
+
+        <rect x="60" y="174" width="230" height="44" rx="8" fill="#e9f0ff" stroke="#2f6fed" stroke-width="1.6"/>
+        <text x="175" y="192" text-anchor="middle" font-size="8.8" font-weight="700" fill="#1f57c9">process_document()</text>
+        <text x="175" y="207" text-anchor="middle" font-size="7.8" fill="#2c4a78">scope / scope_id / target_user</text>
+        <path d="M175,218 V236" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6a)"/>
+
+        <rect x="60" y="236" width="230" height="40" rx="8" fill="#fff" stroke="#cfd6e0" stroke-width="1.3"/>
+        <text x="175" y="254" text-anchor="middle" font-size="8.4" fill="#2a3340">assign_document() per user_id</text>
+        <text x="175" y="268" text-anchor="middle" font-size="7.8" fill="#6b7480">(if explicit list configured)</text>
+        <path d="M175,276 V294" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6a)"/>
+
+        <rect x="60" y="294" width="230" height="44" rx="8" fill="#d9f3ef" stroke="#11a594" stroke-width="1.6"/>
+        <text x="175" y="312" text-anchor="middle" font-size="8.6" font-weight="700" fill="#0c7d70">move &#8594; archive/ (local)</text>
+        <text x="175" y="327" text-anchor="middle" font-size="7.8" fill="#2f6b62">log connector_logs &middot; bump counter</text>
+      </svg>
+    </div>
+    <div>
+      <svg viewBox="0 0 350 360" class="flow-svg" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="m6b" markerWidth="11" markerHeight="11" refX="8" refY="3.5" orient="auto"><path d="M0,0 L8,3.5 L0,7 Z" fill="#9aa4b1"/></marker></defs>
+        <style> text{ font-family:-apple-system,"Segoe UI",Arial,sans-serif; } </style>
+        <rect x="2" y="2" width="346" height="356" rx="12" fill="#fbfcfe" stroke="#e2e8f0" stroke-width="1.4"/>
+        <text x="175" y="28" text-anchor="middle" font-size="11" font-weight="800" fill="#1d4ed8">SharePoint watcher</text>
+        <text x="175" y="43" text-anchor="middle" font-size="8" fill="#6b7480" font-family="ui-monospace,Menlo,Consolas,monospace">sharepoint_watcher.py &middot; Graph poll 60s</text>
+
+        <rect x="60" y="56" width="230" height="44" rx="8" fill="#fff" stroke="#cfd6e0" stroke-width="1.3"/>
+        <text x="175" y="74" text-anchor="middle" font-size="8.6" fill="#2a3340">OAuth2 client-credentials</text>
+        <text x="175" y="88" text-anchor="middle" font-size="7.8" fill="#6b7480">token cached, refresh ~60s early</text>
+        <path d="M175,100 V118" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6b)"/>
+
+        <rect x="60" y="118" width="230" height="44" rx="8" fill="#fff" stroke="#cfd6e0" stroke-width="1.3"/>
+        <text x="175" y="136" text-anchor="middle" font-size="8.6" fill="#2a3340">poll folder, skip archive/</text>
+        <text x="175" y="150" text-anchor="middle" font-size="7.8" fill="#6b7480">+ anything modified &lt; 10s ago</text>
+        <path d="M175,162 V180" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6b)"/>
+
+        <rect x="60" y="180" width="230" height="44" rx="8" fill="#e9f0ff" stroke="#2f6fed" stroke-width="1.6"/>
+        <text x="175" y="198" text-anchor="middle" font-size="8.8" font-weight="700" fill="#1f57c9">download &#8594; process_document()</text>
+        <text x="175" y="213" text-anchor="middle" font-size="7.8" fill="#2c4a78">same pipeline as filesystem</text>
+        <path d="M175,224 V242" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6b)"/>
+
+        <rect x="60" y="242" width="230" height="44" rx="8" fill="#d9f3ef" stroke="#11a594" stroke-width="1.6"/>
+        <text x="175" y="260" text-anchor="middle" font-size="8.6" font-weight="700" fill="#0c7d70">move &#8594; archive/ in SharePoint</text>
+        <text x="175" y="275" text-anchor="middle" font-size="7.8" fill="#2f6b62">(not local disk)</text>
+        <path d="M175,286 V304" fill="none" stroke="#9aa4b1" stroke-width="1.8" marker-end="url(#m6b)"/>
+
+        <rect x="60" y="304" width="230" height="34" rx="8" fill="#eef1f6" stroke="#64748b" stroke-width="1.4"/>
+        <text x="175" y="325" text-anchor="middle" font-size="8.2" fill="#475569">update DB counters &middot; connector_logs</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="caption">Both watchers feed <span class="mono">search_connector_knowledge</span>, which scopes retrieval to <span class="mono">app_documents</span> rows matching a given <span class="mono">source_watch_id + source_watch_type</span>. Archived files are never re-ingested, and re-scanning an unchanged system/connector file (uploader id 0) refreshes it in place rather than duplicating.</div>
+  <div class="pfoot">Nexus &middot; RAG technical reference &middot; page 6</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block title %}Knowledge Base{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Drop-zone ──────────────────────────────────────────────── */
+.drop-zone {
+    border: 2px dashed var(--border-color, #dee2e6);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+}
+.drop-zone.dragover,
+.drop-zone:hover {
+    border-color: #A22E57;
+    background: rgba(162,46,87,.05);
+}
+.drop-zone .dz-icon { font-size: 2.5rem; color: var(--text-3); margin-bottom: .75rem; }
+.drop-zone .dz-label { font-size: .95rem; color: var(--text-2); }
+.drop-zone .dz-hint  { font-size: .8rem;  color: var(--text-3); margin-top: .25rem; }
+
+/* ── Upload progress bar ────────────────────────────────────── */
+#uploadProgressWrap { display:none; }
+
+/* ── File-type badge ────────────────────────────────────────── */
+.badge-filetype {
+    font-size: .7rem;
+    padding: .2rem .45rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.ft-pdf  { background:#fee2e2; color:#ef4444; }
+.ft-docx,.ft-doc  { background:#F3DCE0; color:#A22E57; }
+.ft-xlsx,.ft-xls  { background:#dcfce7; color:#16a34a; }
+.ft-pptx,.ft-ppt  { background:#ffedd5; color:#f97316; }
+.ft-csv  { background:#f0fdf4; color:#22c55e; }
+.ft-html,.ft-htm  { background:#fef9c3; color:#ca8a04; }
+.ft-eml,.ft-msg   { background:#ede9fe; color:#7c3aed; }
+.ft-txt,.ft-md    { background:var(--bg-surface-3); color:var(--text-2); }
+.ft-json { background:#fce7f3; color:#db2777; }
+.ft-png,.ft-jpg,.ft-jpeg,.ft-tiff,.ft-bmp { background:#ecfdf5; color:#059669; }
+.ft-other { background:var(--bg-surface-2); color:var(--text-3); }
+
+/* ── Chunk preview ──────────────────────────────────────────── */
+.chunk-card {
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    margin-bottom: .5rem;
+    font-size: .82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow-y: auto;
+}
+.chunk-label { font-size: .7rem; color: var(--text-3); margin-bottom: .25rem; }
+
+/* ── Search results ─────────────────────────────────────────── */
+.search-result-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    margin-bottom: .5rem;
+}
+.search-score-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: .4rem;
+}
+.search-score-fill { height: 100%; background: #A22E57; border-radius: 2px; }
+
+/* ── Source tabs ─────────────────────────────────────────────── */
+.source-tabs {
+    display: flex;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+.source-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .32rem .85rem;
+    border-radius: 99px;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: all .15s;
+    user-select: none;
+    background: var(--bg-surface-3);
+    color: var(--text-2);
+}
+.source-tab:hover { border-color: var(--text-3); color: var(--text-1); }
+.source-tab.active { background: var(--accent, #A22E57); color: #fff; border-color: var(--accent, #A22E57); }
+.source-tab .tab-count {
+    font-size: .68rem;
+    background: rgba(255,255,255,.18);
+    padding: 1px 6px;
+    border-radius: 99px;
+    font-weight: 700;
+}
+.source-tab:not(.active) .tab-count { background: rgba(0,0,0,.08); color: var(--text-3); }
+
+/* ── Watch sub-selector ─────────────────────────────────────── */
+.watch-selector-row {
+    display: none;
+    gap: .5rem;
+    align-items: center;
+    margin-top: .6rem;
+    flex-wrap: wrap;
+}
+.watch-selector-row.visible { display: flex; }
+.watch-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .26rem .75rem;
+    border-radius: 99px;
+    font-size: .75rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-2);
+    transition: all .15s;
+}
+.watch-pill:hover { border-color: var(--text-3); }
+.watch-pill.active { background: var(--accent-subtle); border-color: #A22E57; color: var(--accent, #6B2038); }
+.watch-pill .pill-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-3);
+    flex-shrink: 0;
+}
+.watch-pill.active .pill-dot { background: #A22E57; }
+.watch-pill-enabled .pill-dot { background: #22c55e !important; }
+
+/* ── Source badge in table ───────────────────────────────────── */
+.src-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .68rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.src-upload    { background: #F3DCE0; color: #6B2038; }
+.src-directory { background: #dcfce7; color: #15803d; }
+.src-sharepoint{ background: #fff7ed; color: #c2410c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 class="page-title"><i class="fas fa-brain me-2"></i>Knowledge Base</h1>
+        <p class="page-subtitle">Upload, process, and search your documents with AI</p>
+    </div>
+    <div class="page-header-right d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="kb.openSearch()">
+            <i class="fas fa-search me-1"></i>Search
+        </button>
+        <button class="btn btn-primary" onclick="kb.openUploadModal()">
+            <i class="fas fa-upload me-1"></i>Upload Document
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(162,46,87,.12);color:#A22E57"><i class="fas fa-file-alt"></i></div>
+            <div><div class="stat-value" id="statTotal">—</div><div class="stat-label">Documents</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(34,197,94,.12);color:#22c55e"><i class="fas fa-puzzle-piece"></i></div>
+            <div><div class="stat-value" id="statChunks">—</div><div class="stat-label">Total Chunks</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(168,85,247,.12);color:#a855f7"><i class="fas fa-users"></i></div>
+            <div><div class="stat-value" id="statShared">—</div><div class="stat-label">Shared With Me</div></div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(249,115,22,.12);color:#f97316"><i class="fas fa-clock"></i></div>
+            <div><div class="stat-value" id="statRecent">—</div><div class="stat-label">Added This Week</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Drop zone (quick upload) -->
+<div class="card mb-4">
+    <div class="card-body p-3">
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+             ondragover="kb.onDragOver(event)" ondragleave="kb.onDragLeave(event)" ondrop="kb.onDrop(event)">
+            <div class="dz-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+            <div class="dz-label"><strong>Click to browse</strong> or drag &amp; drop files here</div>
+            <div class="dz-hint">PDF · Word · Excel · CSV · PPT · HTML · Email · Images · TXT · JSON</div>
+        </div>
+        <input type="file" id="fileInput" class="d-none" multiple
+               accept=".pdf,.docx,.doc,.xlsx,.xls,.xlsm,.csv,.pptx,.ppt,.html,.htm,.eml,.msg,.png,.jpg,.jpeg,.tiff,.bmp,.txt,.md,.json"
+               onchange="kb.handleFileSelect(event)">
+        <div id="uploadProgressWrap" class="mt-3">
+            <div class="d-flex justify-content-between mb-1">
+                <small id="uploadFileName" class="text-muted"></small>
+                <small id="uploadStatus" class="text-muted"></small>
+            </div>
+            <div class="progress" style="height:6px">
+                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     style="width:0%"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Documents table -->
+<div class="card">
+    <div class="card-header">
+        <!-- Source tabs -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="source-tabs" id="sourceTabs">
+                <span class="source-tab active" data-source="all" onclick="kb.setSourceTab('all')">
+                    <i class="fas fa-layer-group"></i> All
+                    <span class="tab-count" id="tabCountAll">—</span>
+                </span>
+                <span class="source-tab" data-source="upload" onclick="kb.setSourceTab('upload')">
+                    <i class="fas fa-upload"></i> Uploaded
+                    <span class="tab-count" id="tabCountUpload">0</span>
+                </span>
+                <span class="source-tab" data-source="filesystem" onclick="kb.setSourceTab('filesystem')">
+                    <i class="fas fa-folder-open"></i> Directory
+                    <span class="tab-count" id="tabCountFilesystem">0</span>
+                </span>
+                <span class="source-tab" data-source="sharepoint" onclick="kb.setSourceTab('sharepoint')">
+                    <i class="fas fa-share-alt"></i> SharePoint
+                    <span class="tab-count" id="tabCountSharepoint">0</span>
+                </span>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <input type="text" id="docSearch" class="form-control form-control-sm" placeholder="Filter by name…"
+                       style="width:180px" autocomplete="off" oninput="kb.filterDocs()">
+                <select id="docTypeFilter" class="form-select form-select-sm" style="width:120px" onchange="kb.filterDocs()">
+                    <option value="">All types</option>
+                    <option value="pdf">PDF</option>
+                    <option value="docx">Word</option>
+                    <option value="xlsx">Excel</option>
+                    <option value="csv">CSV</option>
+                    <option value="pptx">PPT</option>
+                    <option value="html">HTML</option>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary" onclick="kb.loadDocs()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+        <!-- Watch sub-selector (shown when Directory or SharePoint tab is active) -->
+        <div class="watch-selector-row" id="watchSelectorRow">
+            <small class="text-muted me-1">Filter by source:</small>
+            <span class="watch-pill active" data-watch-id="" onclick="kb.setWatchFilter(null)">
+                <span class="pill-dot"></span> All
+            </span>
+            <!-- populated by JS -->
+            <span id="watchPillsContainer"></span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Document</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Chunks</th>
+                    <th>Uploaded By</th>
+                    <th>Version</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="docsTableBody">
+                <tr><td colspan="9" class="text-center py-4 text-muted">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center text-muted small">
+        <span id="docCount">—</span>
+        <span id="docChunkTotal">—</span>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     UPLOAD MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-upload me-2"></i>Upload Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="uploadModalDropZone" class="drop-zone mb-3"
+                     onclick="document.getElementById('modalFileInput').click()"
+                     ondragover="kb.onDragOver(event)" ondragleave="kb.onDragLeave(event)"
+                     ondrop="kb.onDropModal(event)">
+                    <div class="dz-icon"><i class="fas fa-file-upload"></i></div>
+                    <div class="dz-label" id="uploadModalFileName">Click or drag file here</div>
+                    <div class="dz-hint">Max 50MB per file</div>
+                </div>
+                <input type="file" id="modalFileInput" class="d-none"
+                       accept=".pdf,.docx,.doc,.xlsx,.xls,.xlsm,.csv,.pptx,.ppt,.html,.htm,.eml,.msg,.png,.jpg,.jpeg,.tiff,.bmp,.txt,.md,.json"
+                       onchange="kb.handleModalFileSelect(event)">
+                <div class="mb-3">
+                    <label class="form-label">Display Name <small class="text-muted">(optional)</small></label>
+                    <input type="text" id="uploadSourceName" class="form-control" autocomplete="off"
+                           placeholder="e.g. Q1 Sales Report 2025">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Visibility Scope</label>
+                        <select id="uploadScope" class="form-select" onchange="kb.onScopeChange()">
+                            <option value="user">User (me only)</option>
+                            <option value="global">Global (everyone)</option>
+                            <option value="department">Department</option>
+                            <option value="project">Project</option>
+                        </select>
+                    </div>
+                    <div class="col-6" id="uploadScopeIdWrap" style="display:none;">
+                        <label class="form-label" id="uploadScopeIdLabel">ID</label>
+                        <input type="number" id="uploadScopeId" class="form-control"
+                               placeholder="Dept or Project ID">
+                    </div>
+                </div>
+                <div id="modalUploadProgress" style="display:none">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small id="modalUploadStatus" class="text-muted">Processing…</small>
+                    </div>
+                    <div class="progress mb-2" style="height:6px">
+                        <div id="modalUploadBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             style="width:0%"></div>
+                    </div>
+                </div>
+                <div id="modalUploadResult"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnUpload" onclick="kb.doUpload()" disabled>
+                    <i class="fas fa-upload me-1"></i>Upload &amp; Process
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     DOCUMENT DETAIL MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="docDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalTitle">Document Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody">
+                <div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="d-flex gap-2" id="detailModalActions"></div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ASSIGN MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Assign Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="assignDocId">
+                <div class="mb-3">
+                    <label class="form-label">Current Assignments</label>
+                    <div id="currentAssignments" class="mb-2">
+                        <small class="text-muted">Loading…</small>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Add Users</label>
+                    <div id="userCheckboxList">
+                        <small class="text-muted">Loading users…</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Done</button>
+                <button type="button" class="btn btn-primary" onclick="kb.saveAssignments()">
+                    <i class="fas fa-save me-1"></i>Assign Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     NEW VERSION MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="versionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-code-branch me-2"></i>Upload New Version</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="versionDocId">
+                <div class="alert alert-warning py-2 small">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    This will delete the current version's chunks and replace them with the new file.
+                </div>
+                <div id="versionDropZone" class="drop-zone mb-3"
+                     onclick="document.getElementById('versionFileInput').click()">
+                    <div class="dz-icon"><i class="fas fa-file-upload"></i></div>
+                    <div class="dz-label" id="versionFileName">Click to select new file</div>
+                </div>
+                <input type="file" id="versionFileInput" class="d-none"
+                       onchange="kb.handleVersionFileSelect(event)">
+                <div class="mb-3">
+                    <label class="form-label">Display Name <small class="text-muted">(optional)</small></label>
+                    <input type="text" id="versionSourceName" class="form-control" autocomplete="off"
+                           placeholder="Leave blank to keep current name">
+                </div>
+                <div id="versionProgress" style="display:none">
+                    <div class="progress mb-2" style="height:6px">
+                        <div id="versionBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                             style="width:0%"></div>
+                    </div>
+                </div>
+                <div id="versionResult"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="btnVersion" onclick="kb.doVersion()" disabled>
+                    <i class="fas fa-code-branch me-1"></i>Replace with New Version
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SEARCH MODAL
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="searchModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-search me-2"></i>Semantic Search</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="searchQuery" class="form-control" autocomplete="off"
+                           placeholder="Ask a question or describe what you're looking for…"
+                           onkeydown="if(event.key==='Enter') kb.doSearch()">
+                    <button class="btn btn-primary" onclick="kb.doSearch()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                <div id="searchResults"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/knowledge_base.js?v=2"></script>
+{% endblock %}

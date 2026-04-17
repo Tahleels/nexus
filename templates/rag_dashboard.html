@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RAG Observability Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#A22E57;--green:#16a34a;--amber:#d97706;--red:#dc2626;--purple:#7c3aed;
+  --bg:#f0f4f8;--surface:#fff;--border:#e6dfe0;--text:#150f12;--muted:#6e6265;
+  --sh:0 1px 4px rgba(0,0,0,.06),0 4px 20px rgba(0,0,0,.06);
+}
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
+.toolbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#150f12,#251e21);
+  color:#e6dfe0;padding:0 24px;height:52px;display:flex;align-items:center;gap:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.tb-dot{width:8px;height:8px;border-radius:50%;background:#C74759;box-shadow:0 0 6px rgba(199,71,89,.6)}
+.tb-title{font-size:.95rem;font-weight:600;letter-spacing:-.01em}
+.tb-sub{font-size:.78rem;color:#a89b9d;margin-left:auto}
+.tb-back{font-size:.8rem;color:#a89b9d;text-decoration:none;padding:4px 10px;border:1px solid #3c3235;
+  border-radius:6px;transition:all .15s}
+.tb-back:hover{background:#251e21;color:#e6dfe0}
+
+.page{max-width:1300px;margin:0 auto;padding:24px}
+.section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);margin-bottom:12px}
+
+/* Stats cards */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:16px 18px;box-shadow:var(--sh)}
+.stat-label{font-size:.72rem;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.stat-val{font-size:1.6rem;font-weight:700;color:var(--text);line-height:1}
+.stat-sub{font-size:.72rem;color:var(--muted);margin-top:4px}
+.stat-card.red .stat-val{color:var(--red)}
+.stat-card.green .stat-val{color:var(--green)}
+.stat-card.amber .stat-val{color:var(--amber)}
+.stat-card.blue .stat-val{color:var(--blue)}
+
+/* Two-column layout */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:18px;box-shadow:var(--sh)}
+.card-title{font-size:.82rem;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+   color:var(--muted);padding:6px 10px;border-bottom:2px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid #f2eeee;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8f6f6}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.75rem}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:600}
+.badge-green{background:#dcfce7;color:#15803d}
+.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-amber{background:#fef3c7;color:#92400e}
+.badge-blue{background:#F3DCE0;color:#6B2038}
+.badge-purple{background:#ede9fe;color:#6d28d9}
+
+/* Latency bar */
+.lat-bar{display:flex;gap:2px;height:18px;border-radius:4px;overflow:hidden;margin-top:8px}
+.lat-seg{display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:600;color:#fff}
+
+/* Controls */
+.controls{display:flex;gap:10px;align-items:center;margin-bottom:20px}
+.btn{padding:7px 16px;border-radius:8px;font-size:.8rem;font-weight:500;cursor:pointer;
+  border:1px solid transparent;transition:all .15s}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-primary:hover{background:#6B2038}
+.btn-outline{background:#fff;color:var(--text);border-color:var(--border)}
+.btn-outline:hover{background:#f8f6f6}
+.btn-danger{background:#fff;color:var(--red);border-color:#fecaca}
+.btn-danger:hover{background:#fef2f2}
+select,input[type=text],input[type=number]{padding:7px 12px;border:1px solid var(--border);
+  border-radius:8px;font-size:.8rem;font-family:inherit;background:#fff;color:var(--text)}
+select:focus,input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(162,46,87,.1)}
+
+.full-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:18px;box-shadow:var(--sh);margin-bottom:24px}
+
+.eval-form{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.eval-form input[type=text]{flex:1;min-width:280px}
+.eval-form select{width:150px}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #e6dfe0;
+  border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty{text-align:center;padding:32px;color:var(--muted);font-size:.85rem}
+.tag{font-size:.7rem;padding:1px 6px;border-radius:4px;font-weight:500}
+.tag-recall{background:#dbeafe;color:#1e40af}
+.tag-adversarial{background:#ede9fe;color:#5b21b6}
+.tag-hallucination{background:#fef3c7;color:#92400e}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="tb-dot"></div>
+  <span class="tb-title">RAG Observability Dashboard</span>
+  <span class="tb-sub">Last updated: <span id="last-updated">—</span></span>
+  <a href="/knowledge-base" class="tb-back">Knowledge Base</a>
+</div>
+
+<div class="page">
+
+  <!-- Controls -->
+  <div class="controls">
+    <label style="font-size:.8rem;font-weight:500">Period:</label>
+    <select id="period-select" onchange="loadStats()">
+      <option value="1">Last 24h</option>
+      <option value="7" selected>Last 7 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+    </select>
+    <button class="btn btn-outline" onclick="loadAll()">Refresh</button>
+    <button class="btn btn-primary" id="run-eval-btn" onclick="runEval()">Run Evaluation</button>
+    <span id="eval-status" style="font-size:.8rem;color:var(--muted)"></span>
+  </div>
+
+  <!-- Stats -->
+  <div class="section-title">Summary Metrics</div>
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card"><div class="stat-label">Total Queries</div><div class="stat-val" id="s-total">—</div></div>
+    <div class="stat-card amber"><div class="stat-label">Avg Latency</div><div class="stat-val" id="s-latency">—</div><div class="stat-sub">milliseconds</div></div>
+    <div class="stat-card blue"><div class="stat-label">Avg Confidence</div><div class="stat-val" id="s-conf">—</div></div>
+    <div class="stat-card red"><div class="stat-label">Fallback Rate</div><div class="stat-val" id="s-fallback">—</div><div class="stat-sub">insufficient evidence</div></div>
+    <div class="stat-card green"><div class="stat-label">Avg Results</div><div class="stat-val" id="s-results">—</div><div class="stat-sub">chunks returned</div></div>
+  </div>
+
+  <!-- Latency + Top queries -->
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Latency Distribution</div>
+      <div id="lat-bar-wrap">
+        <div class="lat-bar" id="lat-bar"></div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:.72rem;color:var(--muted)">
+          <span id="lat-fast">— fast &lt;500ms</span>
+          <span id="lat-med">— medium</span>
+          <span id="lat-slow">— slow &gt;2s</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Queries</div>
+      <table id="top-queries-table">
+        <thead><tr><th>Query</th><th>Times</th></tr></thead>
+        <tbody id="top-queries-body"><tr><td colspan="2" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent traces -->
+  <div class="full-card">
+    <div class="card-title">
+      Recent Retrieval Traces
+      <span style="margin-left:auto;font-size:.72rem;color:var(--muted)">Latest 50</span>
+    </div>
+    <table>
+      <thead><tr><th>Query</th><th>Method</th><th>Results</th><th>Confidence</th><th>Fallback</th><th>Latency</th><th>Time</th></tr></thead>
+      <tbody id="traces-body"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Evaluation -->
+  <div class="section-title">Continuous Evaluation</div>
+
+  <div class="full-card">
+    <div class="card-title">Test Query Suite</div>
+    <div class="eval-form">
+      <input type="text" id="eval-query-input" placeholder="Enter a test question…" autocomplete="off">
+      <input type="text" id="eval-docs-input" placeholder="Expected doc IDs (comma-separated, optional)" autocomplete="off">
+      <select id="eval-cat-select">
+        <option value="recall">Recall</option>
+        <option value="adversarial">Adversarial</option>
+        <option value="hallucination">Hallucination</option>
+      </select>
+      <button class="btn btn-primary" onclick="addEvalQuery()">Add</button>
+    </div>
+    <table>
+      <thead><tr><th>Query</th><th>Category</th><th>Expected Docs</th><th>Added</th><th></th></tr></thead>
+      <tbody id="eval-queries-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="full-card">
+    <div class="card-title">Evaluation Results</div>
+    <table>
+      <thead><tr><th>Query</th><th>Category</th><th>Recall@1</th><th>Recall@3</th><th>Recall@5</th><th>Confidence</th><th>Consistency</th><th>Fallback</th><th>Latency</th><th>Run At</th></tr></thead>
+      <tbody id="eval-results-body"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function fmt(v, decimals=2){ return v==null?'—':Number(v).toFixed(decimals); }
+function pct(v){ return v==null?'—':(Number(v)*100).toFixed(1)+'%'; }
+
+async function loadStats(){
+  const days = document.getElementById('period-select').value;
+  const r = await fetch(`/api/knowledge/rag-stats?days=${days}`);
+  const d = await r.json();
+  if(!d.success) return;
+  const s = d.summary;
+  document.getElementById('s-total').textContent    = s.total_queries ?? '—';
+  document.getElementById('s-latency').textContent  = s.avg_latency_ms ? Math.round(s.avg_latency_ms) : '—';
+  document.getElementById('s-conf').textContent     = fmt(s.avg_confidence);
+  document.getElementById('s-fallback').textContent = pct(s.fallback_rate);
+  document.getElementById('s-results').textContent  = fmt(s.avg_result_count, 1);
+  document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+
+  // Latency bar
+  const lb = d.latency_buckets || {};
+  const total = (lb.fast_lt500ms||0)+(lb['medium_500-2000ms']||0)+(lb['slow_>2000ms']||0)||1;
+  const bar = document.getElementById('lat-bar');
+  bar.innerHTML = [
+    {v:lb['fast_<500ms']||0,  c:'#16a34a', label:'fast'},
+    {v:lb['medium_500-2000ms']||0, c:'#d97706', label:'med'},
+    {v:lb['slow_>2000ms']||0, c:'#dc2626', label:'slow'},
+  ].map(seg=>`<div class="lat-seg" style="flex:${seg.v};background:${seg.c}" title="${seg.label}: ${seg.v}">${seg.v>0?seg.v:''}</div>`).join('');
+  document.getElementById('lat-fast').textContent = `${lb['fast_<500ms']||0} fast <500ms`;
+  document.getElementById('lat-med').textContent  = `${lb['medium_500-2000ms']||0} medium`;
+  document.getElementById('lat-slow').textContent = `${lb['slow_>2000ms']||0} slow >2s`;
+
+  // Top queries
+  const tqb = document.getElementById('top-queries-body');
+  if(d.top_queries && d.top_queries.length){
+    tqb.innerHTML = d.top_queries.map(q=>`
+      <tr><td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(q.query)}</td>
+          <td><span class="badge badge-blue">${q.times}x</span></td></tr>`).join('');
+  } else {
+    tqb.innerHTML = '<tr><td colspan="2" class="empty">No data yet</td></tr>';
+  }
+}
+
+async function loadTraces(){
+  const r = await fetch('/api/knowledge/rag-traces?limit=50');
+  const d = await r.json();
+  const body = document.getElementById('traces-body');
+  if(!d.success || !d.traces.length){
+    body.innerHTML='<tr><td colspan="7" class="empty">No traces yet</td></tr>'; return;
+  }
+  body.innerHTML = d.traces.map(t=>`
+    <tr>
+      <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.query)}">${esc(t.query)}</td>
+      <td><span class="badge badge-purple">${t.method||'hybrid'}</span></td>
+      <td>${t.result_count}</td>
+      <td>${fmt(t.confidence)}</td>
+      <td>${t.fallback?'<span class="badge badge-red">Yes</span>':'<span class="badge badge-green">No</span>'}</td>
+      <td>${t.latency_ms!=null?t.latency_ms+'ms':'—'}</td>
+      <td class="mono" style="white-space:nowrap">${(t.created_at||'').slice(0,16)}</td>
+    </tr>`).join('');
+}
+
+async function loadEvalQueries(){
+  const r = await fetch('/api/knowledge/eval-queries');
+  const d = await r.json();
+  const body = document.getElementById('eval-queries-body');
+  if(!d.success || !d.queries.length){
+    body.innerHTML='<tr><td colspan="5" class="empty">No test queries yet. Add one above.</td></tr>'; return;
+  }
+  body.innerHTML = d.queries.map(q=>`
+    <tr>
+      <td>${esc(q.query)}</td>
+      <td><span class="tag tag-${q.category||'recall'}">${q.category||'recall'}</span></td>
+      <td class="mono" style="font-size:.7rem">${parseDocIds(q.expected_doc_ids)}</td>
+      <td class="mono" style="white-space:nowrap">${(q.created_at||'').slice(0,10)}</td>
+      <td><button class="btn btn-danger" style="padding:3px 10px;font-size:.72rem" onclick="deleteEvalQuery(${q.id})">Delete</button></td>
+    </tr>`).join('');
+}
+
+async function loadEvalResults(){
+  const r = await fetch('/api/knowledge/eval-results?limit=50');
+  const d = await r.json();
+  const body = document.getElementById('eval-results-body');
+  if(!d.success || !d.results.length){
+    body.innerHTML='<tr><td colspan="10" class="empty">No evaluation runs yet. Click "Run Evaluation" to start.</td></tr>'; return;
+  }
+  body.innerHTML = d.results.map(r=>`
+    <tr>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.query)}">${esc(r.query)}</td>
+      <td><span class="tag tag-${r.category||'recall'}">${r.category||'recall'}</span></td>
+      <td>${scoreCell(r.recall_at_1)}</td>
+      <td>${scoreCell(r.recall_at_3)}</td>
+      <td>${scoreCell(r.recall_at_5)}</td>
+      <td>${fmt(r.confidence)}</td>
+      <td>${fmt(r.consistency)}</td>
+      <td>${r.fallback?'<span class="badge badge-red">Yes</span>':'<span class="badge badge-green">No</span>'}</td>
+      <td>${r.latency_ms!=null?r.latency_ms+'ms':'—'}</td>
+      <td class="mono" style="white-space:nowrap">${(r.run_at||'').slice(0,16)}</td>
+    </tr>`).join('');
+}
+
+function scoreCell(v){
+  if(v==null) return '—';
+  const cls = v>=1?'badge-green':v>=0.5?'badge-amber':'badge-red';
+  return `<span class="badge ${cls}">${v>=1?'Hit':'Miss'}</span>`;
+}
+
+function parseDocIds(raw){
+  try{ const a=JSON.parse(raw||'[]'); return a.length?a.join(', ').slice(0,60):'—'; }
+  catch{ return '—'; }
+}
+
+function esc(s){ const d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+
+async function addEvalQuery(){
+  const q = document.getElementById('eval-query-input').value.trim();
+  if(!q){ alert('Enter a query'); return; }
+  const rawDocs = document.getElementById('eval-docs-input').value.trim();
+  const docs = rawDocs ? rawDocs.split(',').map(s=>s.trim()).filter(Boolean) : [];
+  const cat  = document.getElementById('eval-cat-select').value;
+  const r = await fetch('/api/knowledge/eval-queries', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({query:q, expected_doc_ids:docs, category:cat})
+  });
+  const d = await r.json();
+  if(d.success){
+    document.getElementById('eval-query-input').value='';
+    document.getElementById('eval-docs-input').value='';
+    loadEvalQueries();
+  } else { alert(d.error||'Failed'); }
+}
+
+async function deleteEvalQuery(id){
+  if(!confirm('Delete this test query?')) return;
+  await fetch(`/api/knowledge/eval-queries/${id}`, {method:'DELETE'});
+  loadEvalQueries();
+}
+
+async function runEval(){
+  const btn = document.getElementById('run-eval-btn');
+  const st  = document.getElementById('eval-status');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running…';
+  st.textContent = '';
+  try{
+    const r = await fetch('/api/knowledge/eval-run', {method:'POST'});
+    const d = await r.json();
+    if(d.success){
+      st.textContent = `Done — Recall@1: ${pct(d.recall_at_1)} | @3: ${pct(d.recall_at_3)} | @5: ${pct(d.recall_at_5)} | Fallback: ${pct(d.fallback_rate)}`;
+      loadEvalResults();
+    } else {
+      st.textContent = d.error || 'Failed';
+    }
+  } catch(e){ st.textContent = 'Error: '+e.message; }
+  finally{ btn.disabled=false; btn.textContent='Run Evaluation'; }
+}
+
+function loadAll(){
+  loadStats();
+  loadTraces();
+  loadEvalQueries();
+  loadEvalResults();
+}
+
+loadAll();
+</script>
+</body>
+</html>
