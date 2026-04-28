@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Prompt Library – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-book me-2 text-primary"></i>Prompt Library</h2>
+    <p class="text-muted mb-0">Save, reuse, and share your best prompts</p>
+  </div>
+  <button class="btn btn-primary" onclick="showCreatePrompt()">
+    <i class="fas fa-plus me-2"></i>New Prompt
+  </button>
+</div>
+
+<!-- Filter bar -->
+<div class="d-flex gap-2 flex-wrap mb-3 mt-2">
+  <input type="text" class="form-control" id="promptSearch" placeholder="Search prompts…"
+         style="max-width:300px;" autocomplete="off" oninput="filterPrompts()">
+  <select class="form-select" id="catFilter" style="max-width:200px;" onchange="filterPrompts()">
+    <option value="">All categories</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}">{{ cat|capitalize }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div class="row g-3" id="promptsGrid">
+  {% for p in prompts %}
+  <div class="col-md-6 col-lg-4 prompt-card-wrap"
+       data-title="{{ p.title|lower }}"
+       data-cat="{{ p.category }}"
+       id="prompt-{{ p.id }}">
+    <div class="ws-prompt-card">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h6 class="mb-0">{{ p.title }}</h6>
+        <span class="badge bg-primary-subtle text-primary">{{ p.category }}</span>
+      </div>
+      <p class="text-muted small ws-prompt-preview mb-3">{{ p.prompt_text[:180] }}{% if p.prompt_text|length > 180 %}…{% endif %}</p>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="small text-muted"><i class="fas fa-fire me-1"></i>Used {{ p.use_count }}×</span>
+        <div class="d-flex gap-1">
+          {% if p.is_shared %}
+          <span class="badge bg-success-subtle text-success small"><i class="fas fa-share-alt me-1"></i>Shared</span>
+          {% endif %}
+          <button class="btn btn-sm btn-primary"
+                  onclick="usePrompt({{ p.id }}, {{ p.prompt_text|tojson }})">
+            <i class="fas fa-play me-1"></i>Use
+          </button>
+          {% if p.user_id == current_user.id %}
+          <button class="btn btn-sm btn-outline-danger"
+                  onclick="deletePrompt({{ p.id }})">
+            <i class="fas fa-trash"></i>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not prompts %}
+  <div class="col-12">
+    <div class="ws-empty-state">
+      <i class="fas fa-book-open"></i>
+      <h5>No prompts saved yet</h5>
+      <p class="text-muted">Build a library of reusable prompts for your team.</p>
+      <button class="btn btn-primary" onclick="showCreatePrompt()">
+        <i class="fas fa-plus me-2"></i>Add first prompt
+      </button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Create modal -->
+<div class="modal fade" id="promptModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-plus me-2"></i>New Prompt</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Title <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="promptTitle" placeholder="e.g. Market Analysis Template" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Category</label>
+          <input type="text" class="form-control" id="promptCategory" autocomplete="off"
+                 placeholder="general, analysis, coding, writing…">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Prompt Text <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="promptText" rows="8"
+                    placeholder="Analyse the following data and provide insights…"></textarea>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="promptShared">
+          <label class="form-check-label">Share with team</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="savePrompt()">
+          <i class="fas fa-save me-1"></i>Save Prompt
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterPrompts() {
+  const q   = document.getElementById('promptSearch').value.toLowerCase();
+  const cat = document.getElementById('catFilter').value;
+  document.querySelectorAll('.prompt-card-wrap').forEach(el => {
+    const matchQ   = !q   || el.dataset.title.includes(q);
+    const matchCat = !cat || el.dataset.cat === cat;
+    el.style.display = (matchQ && matchCat) ? '' : 'none';
+  });
+}
+
+function showCreatePrompt() {
+  ['promptTitle','promptCategory','promptText'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('promptShared').checked = false;
+  new bootstrap.Modal('#promptModal').show();
+}
+
+async function savePrompt() {
+  const body = {
+    title:       document.getElementById('promptTitle').value.trim(),
+    prompt_text: document.getElementById('promptText').value.trim(),
+    category:    document.getElementById('promptCategory').value.trim() || 'general',
+    is_shared:   document.getElementById('promptShared').checked,
+  };
+  if (!body.title || !body.prompt_text) { alert('Title and text are required'); return; }
+  const resp = await fetch('/api/workspace/prompts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') location.reload();
+  else alert(data.message || 'Error');
+}
+
+async function deletePrompt(id) {
+  if (!confirm('Delete this prompt?')) return;
+  await fetch(`/api/workspace/prompts/${id}`, { method: 'DELETE' });
+  document.getElementById(`prompt-${id}`)?.remove();
+}
+
+function usePrompt(id, text) {
+  fetch(`/api/workspace/prompts/${id}/use`, { method: 'POST' });
+  // Open workspace with pre-filled message
+  const url = `/workspace?prompt=${encodeURIComponent(text)}`;
+  window.location.href = url;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Workspace Settings – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2 class="mb-0"><i class="fas fa-sliders-h me-2 text-primary"></i>Workspace Settings</h2>
+  <p class="text-muted mb-0">Configure your AI workspace preferences</p>
+</div>
+
+<div class="row mt-3">
+  <div class="col-md-7">
+
+    <div class="card mb-4">
+      <div class="card-header fw-semibold"><i class="fas fa-robot me-2"></i>AI Defaults</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Default Model</label>
+          <select class="form-select" id="settDefaultModel">
+            {% for m in models %}
+            <option value="{{ m.id }}"
+              {% if settings.get('default_model', 'gpt-4o') == m.id %}selected{% endif %}>
+              {{ m.label }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Used when starting a new conversation.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Default System Prompt</label>
+          <textarea class="form-control" id="settSystemPrompt" rows="5"
+                    placeholder="You are a helpful AI assistant for Nexus…">{{ settings.get('default_system_prompt', '') }}</textarea>
+          <div class="form-text">Applied to all new conversations unless overridden by a project.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Default Temperature <span class="badge bg-secondary" id="tempLabel">{{ settings.get('temperature', '0.7') }}</span></label>
+          <input type="range" class="form-range" id="settTemp"
+                 min="0" max="2" step="0.1"
+                 value="{{ settings.get('temperature', '0.7') }}"
+                 oninput="document.getElementById('tempLabel').textContent = this.value">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header fw-semibold"><i class="fas fa-palette me-2"></i>Interface</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Chat Font Size</label>
+          <select class="form-select" id="settFontSize">
+            <option value="small"  {% if settings.get('font_size') == 'small'  %}selected{% endif %}>Small</option>
+            <option value="medium" {% if settings.get('font_size','medium') == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="large"  {% if settings.get('font_size') == 'large'  %}selected{% endif %}>Large</option>
+          </select>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="settAutoTitle"
+                 {% if settings.get('auto_title', 'true') == 'true' %}checked{% endif %}>
+          <label class="form-check-label">Auto-generate conversation titles</label>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="settSaveChunks"
+                 {% if settings.get('save_chunks', 'true') == 'true' %}checked{% endif %}>
+          <label class="form-check-label">Save streaming chunks for replay</label>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="settEnterSend"
+                 {% if settings.get('enter_sends', 'true') == 'true' %}checked{% endif %}>
+          <label class="form-check-label">Enter key sends message (Shift+Enter for newline)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header fw-semibold"><i class="fas fa-shield-alt me-2"></i>Data & Privacy</div>
+      <div class="card-body">
+        <p class="small text-muted">
+          All conversations, messages, and artifacts are stored permanently in your company's
+          private SQL Server database. No data is sent to any external service except OpenAI
+          for AI inference via the OpenAI API.
+        </p>
+        <div class="d-flex gap-2">
+          <a href="/workspace/activity" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-history me-1"></i>View Activity Log
+          </a>
+          <a href="/workspace/model-usage" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-microchip me-1"></i>View Model Usage
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" onclick="saveSettings()">
+        <i class="fas fa-save me-2"></i>Save Settings
+      </button>
+    </div>
+
+    <div class="alert alert-success d-none mt-3" id="settSavedAlert">
+      <i class="fas fa-check me-2"></i>Settings saved successfully.
+    </div>
+  </div>
+
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header fw-semibold"><i class="fas fa-info-circle me-2"></i>Workspace Info</div>
+      <div class="card-body">
+        <ul class="list-unstyled mb-0">
+          <li class="mb-2"><i class="fas fa-user me-2 text-muted"></i>{{ current_user.username }}</li>
+          <li class="mb-2"><i class="fas fa-tag me-2 text-muted"></i>{{ current_user.role|capitalize }}</li>
+          <li class="mb-2"><i class="fas fa-key me-2 text-muted"></i>OpenAI API connected</li>
+          <li class="mb-2"><i class="fas fa-database me-2 text-muted"></i>SQL Server storage active</li>
+          <li><i class="fas fa-lock me-2 text-muted"></i>Data stays on your infrastructure</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function saveSettings() {
+  const body = {
+    default_model:        document.getElementById('settDefaultModel').value,
+    default_system_prompt: document.getElementById('settSystemPrompt').value,
+    temperature:          document.getElementById('settTemp').value,
+    font_size:            document.getElementById('settFontSize').value,
+    auto_title:           String(document.getElementById('settAutoTitle').checked),
+    save_chunks:          String(document.getElementById('settSaveChunks').checked),
+    enter_sends:          String(document.getElementById('settEnterSend').checked),
+  };
+  const resp = await fetch('/api/workspace/settings', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    const alert = document.getElementById('settSavedAlert');
+    alert.classList.remove('d-none');
+    setTimeout(() => alert.classList.add('d-none'), 3000);
+  }
+}
+</script>
+{% endblock %}

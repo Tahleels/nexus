@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}Projects – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-folder-open me-2 text-primary"></i>Projects</h2>
+    <p class="text-muted mb-0">Organise conversations with custom instructions per project</p>
+  </div>
+  <button class="btn btn-primary" onclick="showCreateProject()">
+    <i class="fas fa-plus me-2"></i>New Project
+  </button>
+</div>
+
+<div class="row g-3 mt-1" id="projectsGrid">
+  {% for p in projects %}
+  <div class="col-md-4 col-lg-3" id="proj-card-{{ p.id }}">
+    <div class="ws-project-card" onclick="openProject({{ p.id }})">
+      <div class="ws-project-icon"><i class="fas fa-folder text-warning"></i></div>
+      <div class="ws-project-name">
+        {{ p.name }}
+        {% if p.is_shared %}<span class="badge bg-success-subtle text-success ms-1" style="font-size:.65rem;vertical-align:middle" title="Shared with all R&D"><i class="fas fa-users"></i></span>{% endif %}
+      </div>
+      <div class="ws-project-desc text-muted small">{{ p.description or 'No description' }}</div>
+      <div class="ws-project-meta mt-2 d-flex justify-content-between small text-muted">
+        <span><i class="fas fa-robot me-1"></i>{{ p.model }}</span>
+        <span>
+          {% if p.owner_id != current_user_id %}
+          <i class="fas fa-user me-1"></i>{{ p.owner_username }}
+          {% else %}
+          {{ p.created_at[:10] if p.created_at else '' }}
+          {% endif %}
+        </span>
+      </div>
+      <div class="ws-project-actions mt-2 d-flex gap-2 flex-wrap">
+        {% if p.owner_id == current_user_id or user_role in ('admin', 'dev') %}
+        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); editProject({{ p.id }}, '{{ p.name | e }}', '{{ p.description | e }}', '{{ p.system_prompt | e }}', '{{ (p.notes or '') | e }}', '{{ p.model }}', {{ 1 if p.is_shared else 0 }})">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-info" onclick="event.stopPropagation(); openFilesModal({{ p.id }}, '{{ p.name | e }}')">
+          <i class="fas fa-file-upload me-1"></i>Files
+        </button>
+        {% endif %}
+        {% if user_role in ('admin', 'dev') %}
+        <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation(); openToolsModal({{ p.id }}, '{{ p.name | e }}')">
+          <i class="fas fa-tools me-1"></i>Tools
+        </button>
+        {% endif %}
+        <a href="/workspace?project={{ p.id }}" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation()">
+          <i class="fas fa-comment-dots me-1"></i>Open
+        </a>
+        {% if p.owner_id == current_user_id or user_role in ('admin', 'dev') %}
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteProject({{ p.id }})">
+          <i class="fas fa-trash"></i>
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not projects %}
+  <div class="col-12">
+    <div class="ws-empty-state">
+      <i class="fas fa-folder-plus"></i>
+      <h5>No projects yet</h5>
+      <p class="text-muted">Projects let you give the AI a persistent system prompt and context.<br>Great for recurring tasks, clients, or domains.</p>
+      <button class="btn btn-primary" onclick="showCreateProject()">
+        <i class="fas fa-plus me-2"></i>Create your first project
+      </button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Create/Edit modal -->
+<div class="modal fade" id="projectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="projectModalTitle"><i class="fas fa-folder-plus me-2"></i>New Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editProjectId">
+        <div class="mb-3">
+          <label class="form-label">Project Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="projName" placeholder="e.g. Sales Analysis" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <input type="text" class="form-control" id="projDesc" placeholder="What is this project for?" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Default Model</label>
+          <select class="form-select" id="projModel">
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Project Instructions</label>
+          <textarea class="form-control" id="projSystemPrompt" rows="4"
+                    placeholder="You are a senior R&D engineer working on this client project. Always be concise and cite your reasoning…"></textarea>
+          <div class="form-text">Applied as the AI's system prompt for every conversation in this project.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Project Notes <span class="text-muted small">(persistent context)</span></label>
+          <textarea class="form-control" id="projNotes" rows="5"
+                    placeholder="Key decisions, findings, tech stack, constraints, open questions…"></textarea>
+          <div class="form-text">Compact notes injected into every conversation — like a shared memory across all chats. Keep it concise to avoid token bloat.</div>
+        </div>
+        <div class="form-check form-switch mt-3">
+          <input class="form-check-input" type="checkbox" id="projIsShared">
+          <label class="form-check-label" for="projIsShared">
+            <i class="fas fa-users me-1 text-success"></i>Share with all R&amp;D team
+          </label>
+          <div class="form-text">Off by default — only you can see this project. Turn on to make it visible to everyone in the R&amp;D workspace.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="saveProject()">
+          <i class="fas fa-save me-1"></i>Save Project
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Project Files modal -->
+<div class="modal fade" id="filesModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-file-upload me-2"></i>Project Knowledge — <span id="filesModalProjectName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          Files uploaded here are chunked, embedded, and stored in the vector DB.
+          When you chat in this project the AI automatically retrieves the most relevant chunks — no token bloat.
+        </p>
+
+        <!-- Upload -->
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="file" id="projFileInput" multiple
+                 accept=".pdf,.docx,.doc,.xlsx,.xls,.xlsm,.csv,.pptx,.ppt,.html,.htm,.eml,.msg,.txt,.md,.json,.xml,.yaml,.yml,.py,.js,.ts"
+                 class="form-control form-control-sm" style="max-width:400px;">
+          <button class="btn btn-sm btn-primary" onclick="uploadProjectFiles()">
+            <i class="fas fa-upload me-1"></i>Upload
+          </button>
+          <span id="filesUploadStatus" class="small text-muted"></span>
+        </div>
+
+        <!-- File list -->
+        <div id="filesModalList">
+          <div class="text-muted small text-center py-3">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Project Tool Configuration modal (admin only) -->
+{% if user_role in ('admin', 'dev') %}
+<div class="modal fade" id="toolsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-tools me-2 text-warning"></i>Tools — <span id="toolsModalProjectName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          <i class="fas fa-info-circle me-1"></i>
+          <strong>Web Search, Teams Chat, and Outlook</strong> are always available in every chat.<br>
+          Enable additional tools below that are specific to this project's needs.
+        </p>
+        <div id="toolsModalList">
+          <div class="text-muted small text-center py-3">Loading available tools…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-warning" onclick="saveProjectTools()">
+          <i class="fas fa-save me-1"></i>Save Tool Config
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/workspace_chat.js"></script>
+<script>
+function showCreateProject() {
+  document.getElementById('editProjectId').value = '';
+  document.getElementById('projectModalTitle').innerHTML = '<i class="fas fa-folder-plus me-2"></i>New Project';
+  document.getElementById('projName').value = '';
+  document.getElementById('projDesc').value = '';
+  document.getElementById('projSystemPrompt').value = '';
+  document.getElementById('projNotes').value = '';
+  document.getElementById('projModel').value = 'gpt-4o';
+  document.getElementById('projIsShared').checked = false;
+  new bootstrap.Modal('#projectModal').show();
+}
+
+function editProject(id, name, desc, sysPrompt, notes, model, isShared) {
+  document.getElementById('editProjectId').value = id;
+  document.getElementById('projectModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Edit Project';
+  document.getElementById('projName').value = name;
+  document.getElementById('projDesc').value = desc;
+  document.getElementById('projSystemPrompt').value = sysPrompt;
+  document.getElementById('projNotes').value = notes || '';
+  document.getElementById('projModel').value = model;
+  document.getElementById('projIsShared').checked = !!isShared;
+  new bootstrap.Modal('#projectModal').show();
+}
+
+async function saveProject() {
+  const id = document.getElementById('editProjectId').value;
+  const body = {
+    name:          document.getElementById('projName').value.trim(),
+    description:   document.getElementById('projDesc').value.trim(),
+    system_prompt: document.getElementById('projSystemPrompt').value.trim(),
+    notes:         document.getElementById('projNotes').value.trim(),
+    model:         document.getElementById('projModel').value,
+    is_shared:     document.getElementById('projIsShared').checked,
+  };
+  if (!body.name) { alert('Project name is required'); return; }
+
+  const url    = id ? `/api/workspace/projects/${id}` : '/api/workspace/projects';
+  const method = id ? 'PUT' : 'POST';
+  const resp   = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const data   = await resp.json();
+  if (data.status === 'ok') { location.reload(); }
+  else { alert(data.message || 'Error saving project'); }
+}
+
+async function deleteProject(id) {
+  if (!confirm('Delete this project? Conversations will not be deleted.')) return;
+  await fetch(`/api/workspace/projects/${id}`, { method: 'DELETE' });
+  document.getElementById(`proj-card-${id}`)?.remove();
+}
+
+function openProject(id) {
+  window.location.href = `/workspace?project=${id}`;
+}
+
+// ── Project Files ─────────────────────────────────────────────
+let _filesProjectId = null;
+
+async function openFilesModal(projId, projName) {
+  _filesProjectId = projId;
+  document.getElementById('filesModalProjectName').textContent = projName;
+  document.getElementById('filesUploadStatus').textContent = '';
+  document.getElementById('projFileInput').value = '';
+  new bootstrap.Modal('#filesModal').show();
+  await refreshFilesList();
+}
+
+async function refreshFilesList() {
+  const list = document.getElementById('filesModalList');
+  list.innerHTML = '<div class="text-muted small text-center py-3">Loading…</div>';
+  const res  = await fetch(`/api/workspace/projects/${_filesProjectId}/files`);
+  const data = await res.json();
+  if (!data.files || !data.files.length) {
+    list.innerHTML = '<div class="text-muted small text-center py-3">No files yet. Upload files to build the project knowledge base.</div>';
+    return;
+  }
+  const icons = { pdf:'fa-file-pdf text-danger', docx:'fa-file-word text-primary', doc:'fa-file-word text-primary',
+                  xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', csv:'fa-file-csv text-success',
+                  pptx:'fa-file-powerpoint text-warning', ppt:'fa-file-powerpoint text-warning',
+                  txt:'fa-file-alt text-muted', md:'fa-file-alt text-muted', json:'fa-file-code text-info',
+                  py:'fa-file-code text-info', js:'fa-file-code text-info' };
+  list.innerHTML = `
+    <table class="table table-sm table-hover" style="font-size:.82rem;">
+      <thead><tr>
+        <th>File</th><th>Type</th><th>Chunks</th><th>Size</th><th>Added</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${data.files.map(f => {
+          const icon = icons[f.file_type] || 'fa-file text-muted';
+          const kb   = f.file_size ? (f.file_size / 1024).toFixed(1) + ' KB' : '—';
+          const date = f.created_at ? f.created_at.slice(0,10) : '';
+          return `<tr>
+            <td><i class="fas ${icon} me-1"></i>${escHtml(f.filename)}</td>
+            <td>${escHtml(f.file_type)}</td>
+            <td>${f.chunk_count}</td>
+            <td>${kb}</td>
+            <td>${date}</td>
+            <td><button class="btn btn-link btn-sm text-danger p-0" onclick="deleteProjectFile(${f.id})">
+              <i class="fas fa-trash"></i></button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function uploadProjectFiles() {
+  const input  = document.getElementById('projFileInput');
+  const status = document.getElementById('filesUploadStatus');
+  const files  = Array.from(input.files || []);
+  if (!files.length) { status.textContent = 'Select at least one file.'; return; }
+
+  status.textContent = `Uploading ${files.length} file(s)…`;
+  let ok = 0, fail = 0;
+  for (const file of files) {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res  = await fetch(`/api/workspace/projects/${_filesProjectId}/files`, { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.status === 'ok') ok++;
+      else { fail++; console.warn(file.name, data.message); }
+    } catch { fail++; }
+  }
+  input.value = '';
+  status.textContent = `Done — ${ok} uploaded${fail ? `, ${fail} failed` : ''}.`;
+  await refreshFilesList();
+}
+
+async function deleteProjectFile(fileId) {
+  if (!confirm('Remove this file from the project knowledge base?')) return;
+  await fetch(`/api/workspace/projects/${_filesProjectId}/files/${fileId}`, { method: 'DELETE' });
+  await refreshFilesList();
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Project Tool Configuration (admin only) ───────────────────
+let _toolsProjectId    = null;
+let _allRegistryTools  = null;
+let _projectToolsEnabled = [];
+
+async function openToolsModal(projId, projName) {
+  _toolsProjectId = projId;
+  document.getElementById('toolsModalProjectName').textContent = projName;
+  document.getElementById('toolsModalList').innerHTML = '<div class="text-muted small text-center py-3">Loading…</div>';
+  new bootstrap.Modal('#toolsModal').show();
+
+  // Fetch available tools + current project config in parallel
+  const [regResp, projResp] = await Promise.all([
+    fetch('/api/workspace/registry-tools'),
+    fetch(`/api/workspace/projects/${projId}/tools`),
+  ]);
+  const regData  = await regResp.json();
+  const projData = await projResp.json();
+
+  _allRegistryTools      = regData.tools || [];
+  _projectToolsEnabled   = projData.tools_enabled || [];
+
+  if (!_allRegistryTools.length) {
+    document.getElementById('toolsModalList').innerHTML =
+      '<div class="text-muted small text-center py-3">No additional tools available.</div>';
+    return;
+  }
+
+  const categoryMap = {};
+  for (const t of _allRegistryTools) {
+    if (!categoryMap[t.category]) categoryMap[t.category] = [];
+    categoryMap[t.category].push(t);
+  }
+
+  let html = '';
+  for (const [cat, tools] of Object.entries(categoryMap)) {
+    html += `<div class="small text-muted fw-semibold mt-3 mb-1 text-uppercase" style="font-size:.72rem;letter-spacing:.05em">${escHtml(cat)}</div>`;
+    for (const t of tools) {
+      const checked = _projectToolsEnabled.includes(t.id) ? 'checked' : '';
+      html += `
+        <div class="form-check mb-2 ms-1">
+          <input class="form-check-input" type="checkbox" id="tool_${t.id}" value="${t.id}" ${checked}>
+          <label class="form-check-label" for="tool_${t.id}">
+            <i class="fas ${t.icon} me-1 text-muted"></i>
+            <strong>${escHtml(t.label)}</strong>
+          </label>
+        </div>`;
+    }
+  }
+  document.getElementById('toolsModalList').innerHTML = html;
+}
+
+async function saveProjectTools() {
+  const tools = (_allRegistryTools || [])
+    .filter(t => document.getElementById(`tool_${t.id}`)?.checked)
+    .map(t => t.id);
+
+  const resp = await fetch(`/api/workspace/projects/${_toolsProjectId}/tools`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ tools }),
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    bootstrap.Modal.getInstance(document.getElementById('toolsModal'))?.hide();
+  } else {
+    alert(data.message || 'Error saving tool config');
+  }
+}
+</script>
+{% endblock %}

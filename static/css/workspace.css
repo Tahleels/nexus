@@ -1,0 +1,755 @@
+/* ================================================================
+   workspace.css  —  Enterprise AI Workspace styles
+   Extends main.css; uses same CSS variables.
+================================================================ */
+
+/* ── Layout: full-height two-column split ─────────────────── */
+.ws-layout {
+  display: flex;
+  height: calc(100vh - 0px);
+  overflow: hidden;
+  background: #f8f6f6;
+}
+
+/* ── Conversation sidebar (left panel) ───────────────────── */
+.ws-conv-sidebar {
+  width: 280px;
+  min-width: 220px;
+  max-width: 320px;
+  background: #ffffff;
+  border-right: 1px solid #e6dfe0;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease, min-width 0.25s ease;
+  overflow: hidden;
+}
+.ws-conv-sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
+}
+
+.ws-conv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #f2eeee;
+}
+.ws-conv-title {
+  font-weight: 600;
+  font-size: .9rem;
+  color: #251e21;
+}
+
+.ws-conv-filter {
+  padding: 6px 12px;
+}
+
+.ws-conv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+.ws-conv-list::-webkit-scrollbar { width: 4px; }
+.ws-conv-list::-webkit-scrollbar-thumb { background: #d3c6c8; border-radius: 4px; }
+
+.ws-conv-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 2px;
+}
+.ws-conv-item:hover { background: #f2eeee; }
+.ws-conv-item.active { background: #F8E8EB; border-left: 3px solid #A22E57; }
+.ws-conv-item-title {
+  font-size: .875rem;
+  font-weight: 500;
+  color: #251e21;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-conv-item-meta {
+  font-size: .72rem;
+  color: #a89b9d;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+/* ── Main chat area ───────────────────────────────────────── */
+.ws-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Top bar */
+.ws-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e6dfe0;
+  min-height: 52px;
+}
+.ws-topbar-conv {
+  font-weight: 600;
+  font-size: .95rem;
+  color: #251e21;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+.ws-model-select {
+  font-size: .8rem;
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+.ws-tool-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 3px 10px;
+  border: 1px solid #e6dfe0;
+  border-radius: 20px;
+  background: #fff;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.ws-tool-toggle:has(input:checked) {
+  background: #F8E8EB;
+  border-color: #A22E57;
+  color: #A22E57;
+}
+.ws-tool-toggle:has(#toolTeamsChat:checked) {
+  background: #f0eeff;
+  border-color: #6264a7;
+  color: #6264a7;
+}
+.ws-tool-toggle input { display: none; }
+
+/* Messages pane */
+.ws-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 3%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+}
+.ws-messages::-webkit-scrollbar { width: 5px; }
+.ws-messages::-webkit-scrollbar-thumb { background: #d3c6c8; border-radius: 4px; }
+
+@media (max-width: 900px) {
+  .ws-messages { padding: 16px 3%; }
+}
+
+/* Welcome screen */
+.ws-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+}
+.ws-welcome-icon {
+  font-size: 3rem;
+  color: #A22E57;
+  margin-bottom: 16px;
+  opacity: .7;
+}
+.ws-welcome h3 { font-weight: 700; color: #251e21; }
+.ws-starter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 24px;
+  max-width: 560px;
+}
+.ws-starter-btn {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: .85rem;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.ws-starter-btn:hover {
+  background: #f8f6f6;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+/* ── Message bubbles ─────────────────────────────────────── */
+.ws-msg-wrap {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  animation: wsMsgIn 0.2s ease;
+}
+@keyframes wsMsgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.ws-msg-wrap.user { align-items: flex-end; }
+.ws-msg-wrap.assistant { align-items: flex-start; }
+
+.ws-msg-role {
+  font-size: .72rem;
+  font-weight: 600;
+  color: #6e6265;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.ws-bubble {
+  border-radius: 16px;
+  padding: 12px 16px;
+  max-width: 85%;
+  line-height: 1.6;
+  word-break: break-word;
+  font-size: .92rem;
+}
+.ws-bubble.user {
+  background: #A22E57;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.ws-bubble.assistant {
+  background: #ffffff;
+  border: 1px solid #e6dfe0;
+  color: #251e21;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+
+/* Code blocks inside bubbles */
+.ws-bubble pre {
+  background: #251e21;
+  color: #e6dfe0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-size: .82rem;
+  margin: 8px 0;
+}
+.ws-bubble code:not(pre code) {
+  background: rgba(0,0,0,.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: .85em;
+}
+.ws-bubble.user pre { background: rgba(0,0,0,.25); }
+.ws-bubble.user code:not(pre code) { background: rgba(255,255,255,.2); color: #fff; }
+
+/* Message actions bar */
+.ws-msg-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.ws-msg-wrap:hover .ws-msg-actions { opacity: 1; }
+.ws-msg-action-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: .72rem;
+  color: #a89b9d;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ws-msg-action-btn:hover { background: #f2eeee; border-color: #e6dfe0; color: #574c4f; }
+
+/* Feedback buttons */
+.ws-feedback-btns { display: flex; gap: 4px; }
+.ws-feedback-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ws-feedback-btn.thumbs-up:hover  { background: #dcfce7; border-color: #86efac; color: #16a34a; }
+.ws-feedback-btn.thumbs-down:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+.ws-feedback-btn.active-up   { background: #dcfce7; border-color: #86efac; color: #16a34a; }
+.ws-feedback-btn.active-down { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+
+/* Streaming cursor */
+.ws-streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #A22E57;
+  animation: blink 0.7s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Typing indicator */
+.ws-typing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20%;
+}
+.ws-typing-bubble {
+  display: flex;
+  gap: 4px;
+  background: #f2eeee;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+.ws-typing-bubble span {
+  width: 7px; height: 7px;
+  background: #a89b9d;
+  border-radius: 50%;
+  animation: typingDot 1.2s infinite;
+}
+.ws-typing-bubble span:nth-child(2) { animation-delay: .2s; }
+.ws-typing-bubble span:nth-child(3) { animation-delay: .4s; }
+@keyframes typingDot {
+  0%,60%,100% { transform: translateY(0); }
+  30%         { transform: translateY(-5px); }
+}
+.ws-typing-label { font-size: .78rem; color: #a89b9d; }
+
+/* Citations bar */
+.ws-citations-bar {
+  padding: 6px 20%;
+  border-top: 1px solid #f2eeee;
+  background: #fafafa;
+}
+.ws-citation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #F8E8EB;
+  color: #A22E57;
+  border: 1px solid #E8B9C4;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: .75rem;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.ws-citation-chip:hover { background: #F3DCE0; }
+
+/* Tool call indicator */
+.ws-tool-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: .82rem;
+  color: #92400e;
+  max-width: 78%;
+  animation: wsMsgIn 0.2s ease;
+}
+.ws-tool-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid #fde68a;
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Input area ─────────────────────────────────────────── */
+.ws-input-wrap {
+  padding: 12px 3%;
+  background: #fff;
+  border-top: 1px solid #e6dfe0;
+}
+@media (max-width: 900px) {
+  .ws-input-wrap { padding: 10px 3%; }
+}
+.ws-input-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #f8f6f6;
+  border: 1px solid #e6dfe0;
+  border-radius: 14px;
+  padding: 8px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.ws-input-box:focus-within {
+  border-color: #A22E57;
+  box-shadow: 0 0 0 3px rgba(162,46,87,.1);
+}
+
+/* File chips row (shown above textarea when files are attached) */
+.ws-attached-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e6dfe0;
+}
+.ws-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #F8E8EB;
+  border: 1px solid #E8B9C4;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: .78rem;
+  color: #6B2038;
+  max-width: 200px;
+}
+.ws-file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+.ws-file-chip-size { opacity: .6; flex-shrink: 0; font-size: .72rem; }
+.ws-file-chip-remove {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  color: #6e6265;
+  font-size: .72rem;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 4px;
+  display: flex; align-items: center;
+}
+.ws-file-chip-remove:hover { background: #F3DCE0; color: #6B2038; }
+.ws-file-chip-thumb {
+  width: 28px; height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* File chips displayed inside the user's chat bubble */
+.ws-file-chips-bubble {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.ws-chip-bubble-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,.2);
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: .75rem;
+  color: rgba(255,255,255,.95);
+}
+.ws-chip-bubble-thumb {
+  width: 22px; height: 22px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+/* Textarea + send button row */
+.ws-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.ws-textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  font-size: .92rem;
+  line-height: 1.5;
+  max-height: 180px;
+  overflow-y: auto;
+  color: #251e21;
+}
+.ws-input-actions { display: flex; align-items: center; gap: 4px; }
+.ws-send-btn {
+  border-radius: 10px;
+  padding: 6px 14px;
+}
+.ws-send-btn:disabled { opacity: .4; cursor: not-allowed; }
+.ws-input-footer {
+  display: flex;
+  align-items: center;
+  margin-top: 6px;
+  font-size: .72rem;
+}
+
+/* ── Artifact inline code block header ─────────────────── */
+.ws-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #150f12;
+  color: #a89b9d;
+  font-size: .75rem;
+  padding: 6px 14px;
+  border-radius: 8px 8px 0 0;
+  margin-top: 8px;
+}
+.ws-code-header + pre { border-radius: 0 0 8px 8px; margin-top: 0 !important; }
+
+/* Artifact pre in modal */
+.ws-artifact-pre {
+  background: #251e21;
+  color: #e6dfe0;
+  font-size: .83rem;
+  padding: 20px;
+  margin: 0;
+  overflow: auto;
+  max-height: 70vh;
+  border-radius: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ── Project cards ──────────────────────────────────────── */
+.ws-project-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  height: 100%;
+}
+.ws-project-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  border-color: #A22E57;
+}
+.ws-project-icon { font-size: 2rem; margin-bottom: 10px; }
+.ws-project-name { font-weight: 700; font-size: 1rem; color: #251e21; }
+.ws-project-desc { margin-top: 4px; }
+
+/* ── Conversation cards (saved-chats) ───────────────────── */
+.ws-conv-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.ws-conv-card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+  border-color: #D189A0;
+}
+.ws-conv-card-title {
+  font-weight: 600;
+  font-size: .9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Prompt cards ───────────────────────────────────────── */
+.ws-prompt-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 16px;
+  height: 100%;
+  transition: box-shadow 0.15s;
+}
+.ws-prompt-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+.ws-prompt-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Artifact cards ─────────────────────────────────────── */
+.ws-artifact-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 14px;
+  height: 100%;
+  transition: box-shadow 0.15s;
+}
+.ws-artifact-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+.ws-artifact-type-badge {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem;
+}
+.ws-type-code { background: #F8E8EB; color: #A22E57; }
+.ws-type-sql  { background: #f0fdf4; color: #16a34a; }
+.ws-type-html { background: #fff7ed; color: #ea580c; }
+.ws-type-report { background: #fdf4ff; color: #9333ea; }
+.ws-type-dashboard { background: #fefce8; color: #ca8a04; }
+.ws-type-markdown    { background: #F8E8EB; color: #4A1C2E; }
+.ws-type-presentation{ background: #fdf4ff; color: #7e22ce; }
+.ws-type-image       { background: #fff1f2; color: #be123c; }
+.ws-artifact-snippet {
+  background: #f8f6f6;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: .75rem;
+  overflow: hidden;
+  max-height: 80px;
+  color: #574c4f;
+  margin: 8px 0;
+}
+
+/* ── Memory cards ───────────────────────────────────────── */
+.ws-memory-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 16px;
+  height: 100%;
+}
+.ws-importance-dots { display: flex; gap: 3px; }
+.ws-importance-dots span {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #e6dfe0;
+  transition: background 0.15s;
+}
+.ws-importance-dots span.active { background: #f59e0b; }
+
+/* ── Team workspace cards ───────────────────────────────── */
+.ws-team-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 12px;
+  padding: 20px;
+}
+.ws-ws-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+}
+
+/* ── Model usage cards ──────────────────────────────────── */
+.ws-model-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 10px;
+  padding: 16px;
+}
+.ws-model-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid #f2eeee;
+}
+.ws-model-stat:last-child { border-bottom: none; }
+
+/* ── KPI cards (analytics) ──────────────────────────────── */
+.ws-kpi-card {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ws-kpi-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.ws-kpi-value { font-size: 1.8rem; font-weight: 700; color: #251e21; }
+.ws-kpi-label { font-size: .82rem; color: #6e6265; }
+
+/* ── Replay UI ──────────────────────────────────────────── */
+.ws-replay-msg { display: flex; flex-direction: column; margin-bottom: 10px; }
+.ws-replay-user { align-items: flex-end; }
+.ws-replay-asst { align-items: flex-start; }
+.ws-replay-bubble {
+  background: #fff;
+  border: 1px solid #e6dfe0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: .88rem;
+  max-width: 80%;
+  line-height: 1.5;
+}
+.ws-replay-user .ws-replay-bubble {
+  background: #F8E8EB;
+  border-color: #E8B9C4;
+  color: #6B2038;
+}
+.ws-replay-tool {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: .8rem;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+.ws-replay-meta {
+  color: #a89b9d;
+  font-size: .72rem;
+  padding: 4px 4px;
+}
+
+/* ── Activity table badges ──────────────────────────────── */
+.ws-action-badge { font-size: .73rem; text-transform: capitalize; }
+.ws-act-chat   { background: #F8E8EB; color: #A22E57; }
+.ws-act-create { background: #f0fdf4; color: #16a34a; }
+.ws-act-delete { background: #fef2f2; color: #dc2626; }
+.ws-act-save   { background: #fdf4ff; color: #9333ea; }
+.ws-act-update { background: #fffbeb; color: #d97706; }
+
+/* ── Empty states ───────────────────────────────────────── */
+.ws-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  color: #a89b9d;
+}
+.ws-empty-state i {
+  font-size: 3.5rem;
+  opacity: .25;
+  margin-bottom: 16px;
+}
+.ws-empty-state h5 { color: #574c4f; font-weight: 600; }
+
+/* ── Scrollbar (global for workspace pages) ─────────────── */
+.ws-layout * { scrollbar-width: thin; scrollbar-color: #d3c6c8 transparent; }

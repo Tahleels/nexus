@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Enterprise Memory – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-database me-2 text-primary"></i>Enterprise Memory</h2>
+    <p class="text-muted mb-0">Persistent knowledge the AI can reference across conversations</p>
+  </div>
+  <button class="btn btn-primary" onclick="showAddMemory()">
+    <i class="fas fa-plus me-2"></i>Add Memory
+  </button>
+</div>
+
+<div class="row g-3 mt-1" id="memoryGrid">
+  {% for m in memories %}
+  <div class="col-md-6 col-lg-4" id="mem-{{ m.id }}">
+    <div class="ws-memory-card">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <h6 class="mb-0">{{ m.memory_key }}</h6>
+          <span class="badge bg-{{ 'primary' if m.scope == 'user' else 'success' if m.scope == 'workspace' else 'warning' }}-subtle
+                       text-{{ 'primary' if m.scope == 'user' else 'success' if m.scope == 'workspace' else 'warning' }} small">
+            {{ m.scope|capitalize }}
+          </span>
+          {% if m.target_username %}
+          <span class="badge bg-info-subtle text-info small ms-1">→ {{ m.target_username }}</span>
+          {% endif %}
+          {% if is_admin and m.creator_username %}
+          <span class="badge bg-secondary-subtle text-secondary small ms-1">by {{ m.creator_username }}</span>
+          {% endif %}
+        </div>
+        <div class="ws-importance-dots" title="Importance: {{ m.importance }}/10">
+          {% for i in range(10) %}
+          <span class="{{ 'active' if i < m.importance else '' }}"></span>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="text-muted small mb-2">{{ m.memory_value[:200] }}{% if m.memory_value|length > 200 %}…{% endif %}</p>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="small text-muted">{{ m.updated_at[:10] if m.updated_at else '' }}</span>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteMemory({{ m.id }})">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not memories %}
+  <div class="col-12">
+    <div class="ws-empty-state">
+      <i class="fas fa-database"></i>
+      <h5>No memory entries yet</h5>
+      <p class="text-muted">Add facts, preferences, or context that the AI should always remember.<br>
+        e.g. "Our fiscal year runs April–March" or "Always use metric units"</p>
+      <button class="btn btn-primary" onclick="showAddMemory()">
+        <i class="fas fa-plus me-2"></i>Add first memory
+      </button>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add memory modal -->
+<div class="modal fade" id="memoryModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-database me-2"></i>Add Memory</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Memory Key (short label) <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="memKey" autocomplete="off"
+                 placeholder="e.g. Fiscal Year, Preferred Units, Company Name">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Memory Value <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="memValue" rows="4"
+                    placeholder="Our fiscal year runs from April to March…"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Scope</label>
+            <select class="form-select" id="memScope" onchange="onScopeChange()">
+              <option value="user">Personal</option>
+              <option value="workspace">Team / Workspace</option>
+              <option value="enterprise">Enterprise (all R&amp;D)</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Importance (1–10)</label>
+            <input type="number" class="form-control" id="memImportance" value="5" min="1" max="10">
+          </div>
+        </div>
+
+        {% if is_admin %}
+        <!-- Admin: assign personal memory to a specific user -->
+        <div id="adminTargetUser" class="mt-3" style="display:none;">
+          <label class="form-label">Assign to user <span class="text-muted small">(leave blank = your own)</span></label>
+          <select class="form-select" id="memTargetUser">
+            <option value="">— Myself —</option>
+            {% for u in rd_users %}
+            <option value="{{ u.id }}">{{ u.username }}{% if u.email %} ({{ u.email }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">This memory will be injected into the selected user's chats, not yours.</div>
+        </div>
+
+        <!-- Admin: assign workspace memory to a specific team workspace -->
+        <div id="adminTargetWorkspace" class="mt-3" style="display:none;">
+          <label class="form-label">Assign to workspace <span class="text-muted small">(required for Team scope)</span></label>
+          <select class="form-select" id="memTargetWorkspace">
+            <option value="">— Select workspace —</option>
+            {% for ws in workspaces %}
+            {% if ws.is_team %}
+            <option value="{{ ws.id }}">{{ ws.name }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+          <div class="form-text">All members of this workspace will see this memory in their chats.</div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMemory()">
+          <i class="fas fa-save me-1"></i>Save Memory
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showAddMemory() {
+  // Reset fields
+  document.getElementById('memKey').value = '';
+  document.getElementById('memValue').value = '';
+  document.getElementById('memScope').value = 'user';
+  document.getElementById('memImportance').value = '5';
+  onScopeChange();
+  new bootstrap.Modal('#memoryModal').show();
+}
+
+function onScopeChange() {
+  const scope = document.getElementById('memScope').value;
+  const userDiv = document.getElementById('adminTargetUser');
+  const wsDiv   = document.getElementById('adminTargetWorkspace');
+  if (userDiv) userDiv.style.display  = (scope === 'user')      ? 'block' : 'none';
+  if (wsDiv)   wsDiv.style.display    = (scope === 'workspace')  ? 'block' : 'none';
+}
+
+async function saveMemory() {
+  const scope = document.getElementById('memScope').value;
+  const body  = {
+    memory_key:   document.getElementById('memKey').value.trim(),
+    memory_value: document.getElementById('memValue').value.trim(),
+    scope,
+    importance:   parseInt(document.getElementById('memImportance').value),
+  };
+  if (!body.memory_key || !body.memory_value) { alert('Key and value are required'); return; }
+
+  // Admin-only targeting
+  const targetUserEl = document.getElementById('memTargetUser');
+  const targetWsEl   = document.getElementById('memTargetWorkspace');
+  if (targetUserEl && scope === 'user' && targetUserEl.value) {
+    body.target_user_id = parseInt(targetUserEl.value);
+  }
+  if (targetWsEl && scope === 'workspace' && targetWsEl.value) {
+    body.workspace_id = parseInt(targetWsEl.value);
+  }
+
+  const resp = await fetch('/api/workspace/memory', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') location.reload();
+  else alert(data.message || 'Error');
+}
+
+async function deleteMemory(id) {
+  if (!confirm('Delete this memory entry?')) return;
+  await fetch(`/api/workspace/memory/${id}`, { method: 'DELETE' });
+  document.getElementById(`mem-${id}`)?.remove();
+}
+</script>
+{% endblock %}

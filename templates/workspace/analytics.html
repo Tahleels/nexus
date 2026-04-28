@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}AI Analytics – AI Workspace{% endblock %}
+{% block extra_css %}
+<link href="/static/css/workspace.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>AI Analytics</h2>
+    <p class="text-muted mb-0">Usage insights and performance metrics</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <label class="form-label mb-0 small">Period:</label>
+    <select class="form-select form-select-sm" id="daysPicker" style="width:auto;"
+            onchange="changePeriod(this.value)">
+      <option value="7"  {% if days == 7  %}selected{% endif %}>Last 7 days</option>
+      <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+      <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+    </select>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mt-1">
+  <div class="col-md-3">
+    <div class="ws-kpi-card">
+      <div class="ws-kpi-icon bg-primary-subtle text-primary"><i class="fas fa-comments"></i></div>
+      <div class="ws-kpi-value">{{ summary.total_conversations }}</div>
+      <div class="ws-kpi-label">Conversations</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="ws-kpi-card">
+      <div class="ws-kpi-icon bg-success-subtle text-success"><i class="fas fa-paper-plane"></i></div>
+      <div class="ws-kpi-value">{{ summary.total_messages }}</div>
+      <div class="ws-kpi-label">Messages Sent</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="ws-kpi-card">
+      <div class="ws-kpi-icon bg-warning-subtle text-warning"><i class="fas fa-coins"></i></div>
+      <div class="ws-kpi-value">{{ "{:,}".format(summary.total_tokens) }}</div>
+      <div class="ws-kpi-label">Total Tokens</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="ws-kpi-card">
+      <div class="ws-kpi-icon bg-info-subtle text-info"><i class="fas fa-layer-group"></i></div>
+      <div class="ws-kpi-value">{{ summary.total_artifacts }}</div>
+      <div class="ws-kpi-label">Artifacts Created</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <!-- Daily usage chart -->
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Daily Message Volume</div>
+      <div class="card-body">
+        <canvas id="dailyChart" height="80"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top models -->
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Top Models</div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+          {% for m in summary.top_models %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="fw-semibold small">{{ m.model }}</span>
+            <div class="text-end">
+              <div class="badge bg-primary-subtle text-primary">{{ "{:,}".format(m.tokens) }} tokens</div>
+              <div class="small text-muted">{{ m.calls }} calls</div>
+            </div>
+          </li>
+          {% endfor %}
+          {% if not summary.top_models %}
+          <li class="list-group-item text-muted small text-center py-3">No model usage yet</li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Avg latency -->
+<div class="row g-3 mt-1">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header fw-semibold d-flex justify-content-between">
+        <span>Average Response Latency</span>
+        <span class="badge bg-info-subtle text-info">
+          {{ summary.avg_latency_ms }} ms avg
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Per-model token/cost breakdown -->
+<h5 class="mt-4 mb-2"><i class="fas fa-microchip me-2 text-primary"></i>Model Usage &amp; Cost</h5>
+<div class="row g-3">
+  {% for u in usage %}
+  <div class="col-md-4">
+    <div class="ws-model-card">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-bold">{{ u.model }}</span>
+        <span class="badge bg-primary-subtle text-primary">{{ u.call_count }} calls</span>
+      </div>
+      <div class="ws-model-stat">
+        <span class="small text-muted">Total tokens</span>
+        <strong>{{ "{:,}".format(u.total_tokens) }}</strong>
+      </div>
+      <div class="ws-model-stat">
+        <span class="small text-muted">Prompt tokens</span>
+        <span>{{ "{:,}".format(u.prompt_tokens) }}</span>
+      </div>
+      <div class="ws-model-stat">
+        <span class="small text-muted">Completion tokens</span>
+        <span>{{ "{:,}".format(u.completion_tokens) }}</span>
+      </div>
+      <div class="ws-model-stat">
+        <span class="small text-muted">Est. cost (USD)</span>
+        <strong class="text-success">${{ "%.4f"|format(u.estimated_cost) }}</strong>
+      </div>
+      <div class="ws-model-stat text-muted small">
+        {{ u.first_used }} → {{ u.last_used }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not usage %}
+  <div class="col-12">
+    <div class="ws-empty-state">
+      <i class="fas fa-microchip"></i>
+      <h5>No model usage recorded</h5>
+      <p class="text-muted">Start chatting in the AI Workspace to see usage here.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Admin: all users breakdown -->
+{% if current_user.role == 'admin' and all_usage %}
+<div class="card mt-4">
+  <div class="card-header fw-semibold">All Users — Model Usage</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>User</th><th>Model</th><th>Tokens</th><th>Calls</th><th>Cost (USD)</th></tr>
+      </thead>
+      <tbody>
+        {% for u in all_usage %}
+        <tr>
+          <td>{{ u.username }}</td>
+          <td>{{ u.model }}</td>
+          <td>{{ "{:,}".format(u.total_tokens) }}</td>
+          <td>{{ u.call_count }}</td>
+          <td class="text-success">${{ "%.4f"|format(u.estimated_cost) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changePeriod(days) {
+  window.location = `/workspace/analytics?days=${days}`;
+}
+
+const daily = {{ daily_usage | tojson }};
+
+// Group by date
+const dateMap = {};
+daily.forEach(d => {
+  if (!dateMap[d.usage_date]) dateMap[d.usage_date] = 0;
+  dateMap[d.usage_date] += (d.call_count || 0);
+});
+const labels = Object.keys(dateMap).sort();
+const values = labels.map(d => dateMap[d]);
+
+const ctx = document.getElementById('dailyChart');
+if (ctx && labels.length > 0) {
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Messages',
+        data: values,
+        borderColor: '#A22E57',
+        backgroundColor: 'rgba(162,46,87,.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+        x: { ticks: { maxTicksLimit: 10 } }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

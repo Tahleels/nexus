@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% block title %}Team Workspace – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-users me-2 text-primary"></i>Team Workspaces</h2>
+    <p class="text-muted mb-0">Shared workspaces connecting your team</p>
+  </div>
+  {% if current_user and current_user.role in ['admin', 'dev'] %}
+  <button class="btn btn-primary" onclick="showCreateModal()">
+    <i class="fas fa-plus me-2"></i>New Team Workspace
+  </button>
+  {% endif %}
+</div>
+
+<!-- Workspace cards -->
+<div class="row g-3 mt-1" id="wsCardGrid">
+  {% for w in workspaces %}
+  <div class="col-md-4" data-ws-id="{{ w.id }}">
+    <div class="ws-team-card" style="border-left: 4px solid {{ w.color }};">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="ws-ws-icon" style="background: {{ w.color }}20; color: {{ w.color }};">
+          <i class="fas {{ w.icon or 'fa-users' }}"></i>
+        </div>
+        <div class="flex-grow-1 overflow-hidden">
+          <h6 class="mb-0 text-truncate">{{ w.name }}</h6>
+          <small class="text-muted">{{ w.description or 'Team workspace' }}</small>
+        </div>
+        {% if current_user and current_user.role in ['admin', 'dev'] %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-link text-muted p-0" data-bs-toggle="dropdown">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="/workspace?workspace={{ w.id }}">
+              <i class="fas fa-comment-dots me-2"></i>Open Chat</a></li>
+            <li><a class="dropdown-item" href="#" onclick="editWorkspace({{ w.id }}, '{{ w.name|e }}', '{{ w.description or ''|e }}', '{{ w.color }}')">
+              <i class="fas fa-edit me-2"></i>Edit</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="deleteWorkspace({{ w.id }})">
+              <i class="fas fa-trash me-2"></i>Delete</a></li>
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex gap-2 mt-2">
+        <a href="/workspace?workspace={{ w.id }}" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-comment-dots me-1"></i>Chat
+        </a>
+        {% if current_user and current_user.role in ['admin', 'dev'] %}
+        <button class="btn btn-sm btn-outline-secondary" onclick="openMembersModal({{ w.id }}, '{{ w.name|e }}')">
+          <i class="fas fa-users me-1"></i>Members
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not workspaces %}
+  <div class="col-12">
+    <div class="ws-empty-state mt-3">
+      <i class="fas fa-users-cog"></i>
+      <h5>No team workspaces yet</h5>
+      {% if current_user and current_user.role in ['admin', 'dev'] %}
+      <p class="text-muted">Team workspaces let multiple users share context and collaborate.<br>
+        Create one and invite your teammates.</p>
+      <button class="btn btn-primary" onclick="showCreateModal()">
+        <i class="fas fa-plus me-2"></i>Create Team Workspace
+      </button>
+      {% else %}
+      <p class="text-muted">You haven't been added to any team workspaces yet.<br>
+        Ask your administrator to create a team and invite you.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ── Create / Edit workspace modal ─────────────────────────── -->
+<div class="modal fade" id="wsFormModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="wsFormTitle"><i class="fas fa-users me-2"></i>New Team Workspace</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="wsFormId">
+        <div class="mb-3">
+          <label class="form-label">Workspace Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="wsFormName" placeholder="e.g. Sales Team" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <input type="text" class="form-control" id="wsFormDesc" placeholder="What is this workspace for?" autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Accent Color</label>
+          <input type="color" class="form-control form-control-color" id="wsFormColor" value="#6366f1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" onclick="saveWorkspace()">
+          <span id="wsFormSaveLbl">Create</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Members modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="membersModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-users me-2"></i>Members — <span id="membersModalWsName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Add member row with autocomplete -->
+        <div class="d-flex gap-2 mb-3 align-items-start">
+          <div class="flex-grow-1 position-relative">
+            <input type="text" class="form-control" id="addMemberUsername"
+                   placeholder="Search by username or email…"
+                   autocomplete="off"
+                   oninput="onUserSearch(this.value)"
+                   onkeydown="onUserSearchKey(event)">
+            <div id="userSuggestBox"
+                 class="position-absolute w-100 bg-white border rounded shadow-sm z-3 d-none"
+                 style="top:100%;left:0;max-height:220px;overflow-y:auto;z-index:1055;">
+            </div>
+          </div>
+          <select class="form-select" id="addMemberRole" style="width:auto;min-width:110px;">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+            <option value="viewer">Viewer</option>
+          </select>
+          <button class="btn btn-primary" onclick="addMember()">
+            <i class="fas fa-plus me-1"></i>Add
+          </button>
+        </div>
+
+        <!-- Members table -->
+        <table class="table table-sm align-middle mb-0" id="membersTable">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="membersTbody">
+            <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _activeWsId   = null;
+let _searchTimer  = null;
+let _suggestIdx   = -1;   // keyboard navigation index
+let _selectedUser = null; // {id, username} chosen from dropdown
+
+/* ── User autocomplete ───────────────────────────────────────── */
+
+function onUserSearch(val) {
+  _selectedUser = null;
+  clearTimeout(_searchTimer);
+  if (!val.trim()) { hideSuggest(); return; }
+  _searchTimer = setTimeout(() => fetchSuggestions(val.trim()), 200);
+}
+
+async function fetchSuggestions(q) {
+  const resp = await fetch(`/api/workspace/users/search?q=${encodeURIComponent(q)}`);
+  const data = await resp.json();
+  renderSuggestions(data.users || []);
+}
+
+function renderSuggestions(users) {
+  const box = document.getElementById('userSuggestBox');
+  _suggestIdx = -1;
+  if (!users.length) { hideSuggest(); return; }
+
+  box.innerHTML = users.map((u, i) => `
+    <div class="user-suggest-item px-3 py-2 d-flex align-items-center gap-2"
+         data-idx="${i}" data-username="${esc(u.username)}" data-id="${u.id}"
+         onmousedown="pickUser('${esc(u.username)}', ${u.id})"
+         onmouseover="highlightSuggest(${i})">
+      <div class="ws-avatar-sm flex-shrink-0">${esc(u.username[0].toUpperCase())}</div>
+      <div class="lh-sm">
+        <div class="fw-semibold small">${esc(u.username)}</div>
+        <div class="text-muted" style="font-size:.75rem;">${esc(u.email || '')}</div>
+      </div>
+      <span class="ms-auto badge bg-secondary-subtle text-secondary border" style="font-size:.65rem;">${esc(u.role || '')}</span>
+    </div>
+  `).join('');
+  box.classList.remove('d-none');
+}
+
+function highlightSuggest(idx) {
+  document.querySelectorAll('.user-suggest-item').forEach((el, i) => {
+    el.classList.toggle('bg-primary-subtle', i === idx);
+  });
+  _suggestIdx = idx;
+}
+
+function pickUser(username, id) {
+  _selectedUser = { id, username };
+  document.getElementById('addMemberUsername').value = username;
+  hideSuggest();
+}
+
+function hideSuggest() {
+  document.getElementById('userSuggestBox').classList.add('d-none');
+}
+
+function onUserSearchKey(e) {
+  const items = document.querySelectorAll('.user-suggest-item');
+  if (!items.length) {
+    if (e.key === 'Enter') addMember();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _suggestIdx = Math.min(_suggestIdx + 1, items.length - 1);
+    highlightSuggest(_suggestIdx);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _suggestIdx = Math.max(_suggestIdx - 1, 0);
+    highlightSuggest(_suggestIdx);
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_suggestIdx >= 0 && items[_suggestIdx]) {
+      const el = items[_suggestIdx];
+      pickUser(el.dataset.username, parseInt(el.dataset.id));
+    } else {
+      addMember();
+    }
+  } else if (e.key === 'Escape') {
+    hideSuggest();
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('mousedown', (e) => {
+  if (!e.target.closest('#userSuggestBox') && !e.target.closest('#addMemberUsername')) {
+    hideSuggest();
+  }
+});
+
+/* ── Workspace CRUD ──────────────────────────────────────────── */
+
+function showCreateModal() {
+  document.getElementById('wsFormId').value = '';
+  document.getElementById('wsFormName').value = '';
+  document.getElementById('wsFormDesc').value = '';
+  document.getElementById('wsFormColor').value = '#6366f1';
+  document.getElementById('wsFormTitle').innerHTML = '<i class="fas fa-users me-2"></i>New Team Workspace';
+  document.getElementById('wsFormSaveLbl').textContent = 'Create';
+  new bootstrap.Modal('#wsFormModal').show();
+}
+
+function editWorkspace(id, name, desc, color) {
+  document.getElementById('wsFormId').value = id;
+  document.getElementById('wsFormName').value = name;
+  document.getElementById('wsFormDesc').value = desc;
+  document.getElementById('wsFormColor').value = color || '#6366f1';
+  document.getElementById('wsFormTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Edit Workspace';
+  document.getElementById('wsFormSaveLbl').textContent = 'Save';
+  new bootstrap.Modal('#wsFormModal').show();
+}
+
+async function saveWorkspace() {
+  const id   = document.getElementById('wsFormId').value;
+  const name = document.getElementById('wsFormName').value.trim();
+  if (!name) { alert('Workspace name is required'); return; }
+
+  const body = {
+    name,
+    description: document.getElementById('wsFormDesc').value.trim(),
+    color:       document.getElementById('wsFormColor').value,
+    is_team:     true,
+    icon:        'fa-users',
+  };
+
+  const url    = id ? `/api/workspace/workspaces/${id}` : '/api/workspace/workspaces';
+  const method = id ? 'PATCH' : 'POST';
+
+  const resp = await fetch(url, {
+    method, headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    location.reload();
+  } else {
+    alert(data.message || 'Error saving workspace');
+  }
+}
+
+async function deleteWorkspace(id) {
+  if (!confirm('Delete this workspace? All associated data will be archived.')) return;
+  const resp = await fetch(`/api/workspace/workspaces/${id}`, { method: 'DELETE' });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    document.querySelector(`[data-ws-id="${id}"]`)?.remove();
+  } else {
+    alert(data.message || 'Error');
+  }
+}
+
+
+/* ── Members ─────────────────────────────────────────────────── */
+
+async function openMembersModal(wsId, wsName) {
+  _activeWsId = wsId;
+  document.getElementById('membersModalWsName').textContent = wsName;
+  document.getElementById('addMemberUsername').value = '';
+  new bootstrap.Modal('#membersModal').show();
+  await refreshMembers();
+}
+
+async function refreshMembers() {
+  if (!_activeWsId) return;
+  const resp = await fetch(`/api/workspace/workspaces/${_activeWsId}/members`);
+  const data = await resp.json();
+  const tbody = document.getElementById('membersTbody');
+
+  if (data.status !== 'ok' || !data.members.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No members yet.</td></tr>';
+    return;
+  }
+
+  const roleColors = { owner:'primary', admin:'warning', member:'secondary', viewer:'light' };
+
+  tbody.innerHTML = data.members.map(m => `
+    <tr data-user-id="${m.user_id}">
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          <div class="ws-avatar-sm">${esc(m.username[0].toUpperCase()) }</div>
+          <strong>${esc(m.username)}</strong>
+        </div>
+      </td>
+      <td class="text-muted small">${esc(m.email || '')}</td>
+      <td>
+        <select class="form-select form-select-sm" style="width:auto;"
+                onchange="updateRole(${m.user_id}, this.value)">
+          ${['viewer','member','admin','owner'].map(r =>
+            `<option value="${r}" ${m.role===r?'selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`
+          ).join('')}
+        </select>
+      </td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-danger" onclick="removeMember(${m.user_id}, '${esc(m.username)}')">
+          <i class="fas fa-times"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function addMember() {
+  const input    = document.getElementById('addMemberUsername');
+  const username = input.value.trim();
+  const role     = document.getElementById('addMemberRole').value;
+  if (!username) { input.focus(); return; }
+  hideSuggest();
+
+  // Use the pre-resolved user_id if user picked from dropdown, else send username
+  const body = _selectedUser && _selectedUser.username === username
+    ? { user_id: _selectedUser.id, role }
+    : { username, role };
+
+  const resp = await fetch(`/api/workspace/workspaces/${_activeWsId}/members`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    document.getElementById('addMemberUsername').value = '';
+    _selectedUser = null;
+    await refreshMembers();
+  } else {
+    alert(data.message || 'Could not add member');
+  }
+}
+
+async function removeMember(userId, username) {
+  if (!confirm(`Remove ${username} from this workspace?`)) return;
+  const resp = await fetch(`/api/workspace/workspaces/${_activeWsId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') {
+    document.querySelector(`#membersTbody tr[data-user-id="${userId}"]`)?.remove();
+    if (!document.querySelector('#membersTbody tr[data-user-id]')) {
+      document.getElementById('membersTbody').innerHTML =
+        '<tr><td colspan="4" class="text-center text-muted py-3">No members yet.</td></tr>';
+    }
+  } else {
+    alert(data.message || 'Error');
+  }
+}
+
+async function updateRole(userId, role) {
+  await fetch(`/api/workspace/workspaces/${_activeWsId}/members/${userId}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ role }),
+  });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+<style>
+.ws-avatar-sm {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .75rem; font-weight: 600;
+  flex-shrink: 0;
+}
+.user-suggest-item {
+  cursor: pointer;
+  transition: background .1s;
+}
+.user-suggest-item:hover,
+.user-suggest-item.bg-primary-subtle {
+  background: #eef2ff !important;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}AI Activity – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-history me-2 text-primary"></i>AI Activity</h2>
+    <p class="text-muted mb-0">Full audit trail of every workspace action</p>
+  </div>
+  <div>
+    <input type="text" class="form-control form-control-sm" id="actSearch"
+           placeholder="Search activity…" autocomplete="off" oninput="filterActivity()">
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="activityTable">
+        <thead class="table-light">
+          <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Details</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in activity %}
+          <tr class="act-row" data-search="{{ a.action|lower }} {{ (a.entity_type or '')|lower }}">
+            <td class="text-muted small">{{ a.created_at[:19] if a.created_at else '' }}</td>
+            <td>
+              <span class="badge ws-action-badge ws-act-{{ a.action.split('_')[0] }}">
+                {% set icon_map = {
+                  'chat': 'fa-comment',
+                  'create': 'fa-plus',
+                  'delete': 'fa-trash',
+                  'save': 'fa-save',
+                  'update': 'fa-edit',
+                  'login': 'fa-sign-in-alt',
+                } %}
+                <i class="fas {{ icon_map.get(a.action.split('_')[0], 'fa-bolt') }} me-1"></i>
+                {{ a.action.replace('_', ' ')|capitalize }}
+              </span>
+            </td>
+            <td>
+              {% if a.entity_type %}
+              <span class="small">{{ a.entity_type }} #{{ a.entity_id or '' }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="small text-muted" style="max-width:300px;">
+              {{ (a.details or '')[:120] }}
+            </td>
+            <td class="small text-muted">{{ a.ip_address or '—' }}</td>
+          </tr>
+          {% endfor %}
+          {% if not activity %}
+          <tr><td colspan="5" class="text-center py-4 text-muted">No activity recorded yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterActivity() {
+  const q = document.getElementById('actSearch').value.toLowerCase();
+  document.querySelectorAll('.act-row').forEach(row => {
+    row.style.display = row.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

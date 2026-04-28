@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Saved Chats – AI Workspace{% endblock %}
+{% block extra_css %}<link href="/static/css/workspace.css" rel="stylesheet">{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <div>
+    <h2 class="mb-0"><i class="fas fa-bookmark me-2 text-primary"></i>Saved Chats</h2>
+    <p class="text-muted mb-0">All your conversations — starred and recent</p>
+  </div>
+  <a href="/workspace" class="btn btn-primary">
+    <i class="fas fa-plus me-2"></i>New Chat
+  </a>
+</div>
+
+<!-- Search -->
+<div class="input-group mb-4 mt-2" style="max-width:420px;">
+  <span class="input-group-text"><i class="fas fa-search"></i></span>
+  <input type="text" class="form-control" id="convSearch" placeholder="Search conversations…"
+         autocomplete="off" oninput="filterConvs(this.value)">
+</div>
+
+<!-- Starred -->
+{% if starred %}
+<h6 class="text-muted text-uppercase small fw-bold mb-2">
+  <i class="fas fa-star text-warning me-1"></i>Starred ({{ starred|length }})
+</h6>
+<div class="row g-2 mb-4" id="starredList">
+  {% for c in starred %}
+  <div class="col-md-6 col-lg-4 conv-card-wrap" data-title="{{ (c.title or 'New conversation')|lower }}">
+    <div class="ws-conv-card" onclick="window.location='/workspace?conv={{ c.id }}'">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="ws-conv-card-title">
+          <i class="fas fa-star text-warning me-1 small"></i>
+          {{ c.title or 'New conversation' }}
+        </div>
+        <span class="badge bg-secondary small">{{ c.model }}</span>
+      </div>
+      <div class="ws-conv-card-meta text-muted small mt-1">
+        <i class="fas fa-comment me-1"></i>{{ c.message_count }} messages &nbsp;·&nbsp;
+        <i class="fas fa-clock me-1"></i>{{ c.updated_at[:10] if c.updated_at else '' }}
+      </div>
+      <div class="mt-2 d-flex gap-2">
+        <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation(); toggleStar({{ c.id }}, this)">
+          <i class="fas fa-star me-1"></i>Unstar
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteConv({{ c.id }}, this)">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Recent -->
+<h6 class="text-muted text-uppercase small fw-bold mb-2">
+  <i class="fas fa-clock me-1"></i>Recent ({{ recent|length }})
+</h6>
+<div class="row g-2" id="recentList">
+  {% for c in recent %}
+  <div class="col-md-6 col-lg-4 conv-card-wrap" data-title="{{ (c.title or 'New conversation')|lower }}">
+    <div class="ws-conv-card" onclick="window.location='/workspace?conv={{ c.id }}'">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="ws-conv-card-title">{{ c.title or 'New conversation' }}</div>
+        <span class="badge bg-secondary small">{{ c.model }}</span>
+      </div>
+      <div class="ws-conv-card-meta text-muted small mt-1">
+        <i class="fas fa-comment me-1"></i>{{ c.message_count }} messages &nbsp;·&nbsp;
+        <i class="fas fa-clock me-1"></i>{{ c.updated_at[:10] if c.updated_at else '' }}
+      </div>
+      <div class="mt-2 d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); toggleStar({{ c.id }}, this)">
+          <i class="far fa-star me-1"></i>Star
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteConv({{ c.id }}, this)">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if not starred and not recent %}
+<div class="ws-empty-state">
+  <i class="fas fa-comments"></i>
+  <h5>No conversations yet</h5>
+  <p class="text-muted">Start chatting in the AI Workspace and your conversations will appear here.</p>
+  <a href="/workspace" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Start Chatting</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterConvs(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.conv-card-wrap').forEach(el => {
+    el.style.display = el.dataset.title.includes(q) ? '' : 'none';
+  });
+}
+
+async function toggleStar(id, btn) {
+  const resp = await fetch(`/api/workspace/conversations/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ is_starred: btn.innerHTML.includes('Unstar') ? 0 : 1 })
+  });
+  location.reload();
+}
+
+async function deleteConv(id, btn) {
+  if (!confirm('Delete this conversation permanently?')) return;
+  await fetch(`/api/workspace/conversations/${id}`, { method: 'DELETE' });
+  btn.closest('.conv-card-wrap').remove();
+}
+</script>
+{% endblock %}
