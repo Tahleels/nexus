@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}Portal Mapping — Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+.status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px; font-size: .78rem; font-weight: 600;
+}
+.status-ok   { background: #dcfce7; color: #15803d; }
+.status-err  { background: #fee2e2; color: #b91c1c; }
+.status-dot  { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.mapping-table th { font-size: .78rem; font-weight: 700; text-transform: uppercase;
+                    color: #6e6265; border-bottom: 2px solid #e6dfe0; }
+.mapping-table td { vertical-align: middle; font-size: .87rem; padding: 10px 12px; }
+.mapping-table tr:hover td { background: #f8f6f6; }
+.portal-project-name { font-weight: 600; color: #251e21; }
+.portal-project-id   { font-size: .74rem; color: #a89b9d; }
+.mapped-chip {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: .74rem; font-weight: 600;
+}
+.chip-dept    { background: #ede9fe; color: #6d28d9; }
+.chip-project { background: #F3DCE0; color: #6B2038; }
+.chip-none    { background: #f2eeee; color: #a89b9d; }
+.save-row select { font-size: .84rem; }
+.section-card {
+    background: #fff; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 20px 24px; margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-link me-2"></i>Portal Mapping</h2>
+        <p class="text-muted mb-0">Map portal projects to local departments &amp; projects for auto user assignment</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span id="viewStatus" class="status-badge status-err">
+            <span class="status-dot"></span> Checking…
+        </span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="_nexusCheckStatus()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh Status
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="_nexusSyncAll(this)">
+            <i class="fas fa-users-cog me-1"></i>Sync All Users
+        </button>
+    </div>
+</div>
+
+<!-- Mapping Table -->
+<div class="section-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="fas fa-table me-2 text-primary"></i>Project Mappings</h5>
+        <input type="search" id="searchInput" class="form-control form-control-sm"
+               style="max-width:240px" placeholder="Search projects…"
+               autocomplete="new-password" spellcheck="false">
+    </div>
+
+    <div id="tableWrap">
+        <table class="table mapping-table mb-0">
+            <thead>
+                <tr>
+                    <th style="width:36px">#</th>
+                    <th>Portal Project</th>
+                    <th>Maps to Department</th>
+                    <th>Maps to Local Project</th>
+                    <th style="width:110px">Action</th>
+                </tr>
+            </thead>
+            <tbody id="mappingBody">
+                <tr><td colspan="5" class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin me-2"></i>Loading…
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Sync Records -->
+<div class="section-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="fas fa-history me-2 text-secondary"></i>User Sync Log</h5>
+        <button class="btn btn-outline-secondary btn-sm" onclick="_nexusLoadSyncRecords()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+        </button>
+    </div>
+    <table class="table mapping-table mb-0">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Portal ID</th>
+                <th>Status</th>
+                <th>Last Synced</th>
+            </tr>
+        </thead>
+        <tbody id="syncBody">
+            <tr><td colspan="5" class="text-center text-muted py-3">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    // Page-scoped state — not polluting global scope
+    let portalProjects = [];
+    let _portalProjectsLoaded = false;
+    let _searchQuery = '';   // controlled by us — never read from DOM directly
+    let currentMappings = {};
+    let localDepts = [];
+    let localProjects = [];
+
+    // ── helpers ────────────────────────────────────────────────────────────
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function showToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = `alert alert-${type==='success'?'success':'danger'} position-fixed shadow`;
+        t.style.cssText = 'bottom:24px;right:24px;z-index:9999;min-width:220px;animation:fadeIn .2s';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+
+    // ── data loaders ───────────────────────────────────────────────────────
+    async function loadPortalProjects() {
+        try {
+            const r = await fetch('/api/admin/nexus/projects');
+            if (!r.ok) return;
+            const data = await r.json();
+            if (Array.isArray(data)) {
+                portalProjects = data;
+                _portalProjectsLoaded = true;
+            }
+        } catch (e) {
+            console.warn('loadPortalProjects failed:', e);
+        }
+    }
+
+    async function loadMappings() {
+        try {
+            const r = await fetch('/api/admin/nexus/mappings');
+            if (!r.ok) return;
+            const rows = await r.json();
+            if (!Array.isArray(rows)) return;
+            currentMappings = {};
+            for (const m of rows) currentMappings[m.nexus_project_id] = m;
+        } catch (e) {
+            console.warn('loadMappings failed:', e);
+        }
+    }
+
+    async function loadLocalDepts() {
+        try {
+            const r = await fetch('/api/admin/departments');
+            const data = await r.json();
+            if (Array.isArray(data)) localDepts = data;
+        } catch (e) {}
+    }
+
+    async function loadLocalProjects() {
+        try {
+            const r = await fetch('/api/admin/projects');
+            const data = await r.json();
+            if (Array.isArray(data)) localProjects = data;
+        } catch (e) {}
+    }
+
+    async function checkStatus() {
+        try {
+            const r = await fetch('/api/admin/nexus/status');
+            const d = await r.json();
+            const el = document.getElementById('viewStatus');
+            if (d.ok) {
+                el.className = 'status-badge status-ok';
+                el.innerHTML = `<span class="status-dot"></span> Connected — ${d.users} users, ${d.projects} projects`;
+            } else {
+                el.className = 'status-badge status-err';
+                el.innerHTML = `<span class="status-dot"></span> Unreachable`;
+                el.title = d.error || '';
+            }
+        } catch (e) {}
+    }
+
+    async function loadSyncRecords() {
+        try {
+            const r = await fetch('/api/admin/nexus/sync-records');
+            if (!r.ok) return;
+            const rows = await r.json();
+            if (!Array.isArray(rows)) return;
+            if (!rows.length) {
+                document.getElementById('syncBody').innerHTML =
+                    `<tr><td colspan="5" class="text-center text-muted py-3">No sync records yet</td></tr>`;
+                return;
+            }
+            const statusClass = { synced:'success', no_match:'warning', pending:'secondary' };
+            document.getElementById('syncBody').innerHTML = rows.map(row => `
+                <tr>
+                    <td>${esc(row.username || '—')}</td>
+                    <td>${esc(row.user_email)}</td>
+                    <td>${row.nexus_user_id ?? '<span class="text-muted">—</span>'}</td>
+                    <td><span class="badge bg-${statusClass[row.sync_status]||'secondary'}">${esc(row.sync_status)}</span></td>
+                    <td class="text-muted">${row.last_synced_at ? row.last_synced_at.replace('T',' ').slice(0,19) : '—'}</td>
+                </tr>`).join('');
+        } catch (e) {}
+    }
+
+    // ── render ─────────────────────────────────────────────────────────────
+    function deptOptions(selectedId) {
+        let o = `<option value="">— None —</option>`;
+        for (const d of localDepts)
+            o += `<option value="${d.id}" ${d.id==selectedId?'selected':''}>${esc(d.name)}</option>`;
+        return o;
+    }
+
+    function projectOptions(selectedId) {
+        let o = `<option value="">— None —</option>`;
+        for (const p of localProjects)
+            o += `<option value="${p.id}" ${p.id==selectedId?'selected':''}>${esc(p.name)}</option>`;
+        return o;
+    }
+
+    function renderTable() {
+        if (!_portalProjectsLoaded) return;
+
+        // Always use our internal variable — never read searchEl.value, which Chrome
+        // may have mutated via form-restore or autofill without a keyup event.
+        const q = _searchQuery.toLowerCase();
+
+        // Keep the DOM in sync so the displayed value matches what we're filtering on.
+        const searchEl = document.getElementById('searchInput');
+        if (searchEl && searchEl.value !== _searchQuery) searchEl.value = _searchQuery;
+
+        const filtered = portalProjects.filter(p =>
+            (p.project_name || '').toLowerCase().includes(q)
+        );
+
+        const body = document.getElementById('mappingBody');
+        if (!body) return;
+
+        if (!filtered.length) {
+            body.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">
+                <i class="fas fa-inbox me-2"></i>${q ? 'No projects match your search.' : 'No portal projects found. Check view status above.'}
+            </td></tr>`;
+            return;
+        }
+
+        let html = '';
+        filtered.forEach((p, i) => {
+            const m  = currentMappings[p.nexus_project_id] || {};
+            const dId = m.dept_id    || '';
+            const pId = m.project_id || '';
+            // Store project name in data attribute to avoid apostrophe/quote escaping in onclick
+            html += `
+            <tr id="row-${p.nexus_project_id}" data-pname="${esc(p.project_name)}">
+                <td class="text-muted">${i+1}</td>
+                <td>
+                    <div class="portal-project-name">${esc(p.project_name)}</div>
+                    <div class="portal-project-id">ID: ${p.nexus_project_id}
+                        ${!p.is_active ? '<span class="badge bg-secondary ms-1">Inactive</span>' : ''}
+                    </div>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" id="dept-${p.nexus_project_id}"
+                            onchange="window._nexusMarkDirty(${p.nexus_project_id})">
+                        ${deptOptions(dId)}
+                    </select>
+                </td>
+                <td>
+                    <select class="form-select form-select-sm" id="proj-${p.nexus_project_id}"
+                            onchange="window._nexusMarkDirty(${p.nexus_project_id})">
+                        ${projectOptions(pId)}
+                    </select>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary" id="save-${p.nexus_project_id}"
+                            onclick="window._nexusSave(${p.nexus_project_id})">
+                        <i class="fas fa-save me-1"></i>Save
+                    </button>
+                    ${dId || pId ? `
+                    <button class="btn btn-sm btn-outline-danger ms-1" title="Remove mapping"
+                            onclick="window._nexusDelete(${p.nexus_project_id})">
+                        <i class="fas fa-times"></i>
+                    </button>` : ''}
+                </td>
+            </tr>`;
+        });
+        body.innerHTML = html;
+    }
+
+    // ── actions exposed to onclick ─────────────────────────────────────────
+    window._nexusMarkDirty = function(projectId) {
+        const btn = document.getElementById(`save-${projectId}`);
+        if (btn) btn.classList.add('btn-warning');
+    };
+
+    window._nexusSave = async function(nexusProjectId) {
+        const row = document.getElementById(`row-${nexusProjectId}`);
+        const projectName = row ? row.dataset.pname : '';
+        const deptId  = document.getElementById(`dept-${nexusProjectId}`).value || null;
+        const projId  = document.getElementById(`proj-${nexusProjectId}`).value || null;
+
+        try {
+            const r = await fetch('/api/admin/nexus/mappings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    nexus_project_id:   nexusProjectId,
+                    nexus_project_name: projectName,
+                    dept_id:    deptId  ? parseInt(deptId)  : null,
+                    project_id: projId  ? parseInt(projId)  : null,
+                })
+            });
+            const d = await r.json();
+            if (d.status === 'success') {
+                await loadMappings();
+                renderTable();
+                showToast('Mapping saved', 'success');
+            } else {
+                showToast(d.message || 'Failed to save', 'error');
+            }
+        } catch (e) {
+            showToast('Save failed', 'error');
+        }
+    };
+
+    window._nexusDelete = async function(nexusProjectId) {
+        if (!confirm('Remove this mapping?')) return;
+        try {
+            const r = await fetch(`/api/admin/nexus/mappings/${nexusProjectId}`, {method:'DELETE'});
+            const d = await r.json();
+            if (d.status === 'success') {
+                await loadMappings();
+                renderTable();
+                showToast('Mapping removed', 'success');
+            }
+        } catch (e) {
+            showToast('Delete failed', 'error');
+        }
+    };
+
+    window._nexusSyncAll = async function(btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing…';
+        try {
+            const r = await fetch('/api/admin/nexus/sync-all', {method:'POST'});
+            const d = await r.json();
+            showToast(`Synced ${d.synced} / ${d.total} users`, 'success');
+            loadSyncRecords();
+        } catch (e) {
+            showToast('Sync failed', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-users-cog me-1"></i>Sync All Users';
+        }
+    };
+
+    window._nexusCheckStatus = checkStatus;
+    window._nexusLoadSyncRecords = loadSyncRecords;
+
+    // ── search input — only explicit user events update _searchQuery ─────────
+    // Chrome restores form values asynchronously (after script runs), so we
+    // NEVER read _searchEl.value inside renderTable(). We read it here only
+    // on real keyup/paste events, update _searchQuery, then render.
+    const _searchEl = document.getElementById('searchInput');
+    if (_searchEl) {
+        _searchEl.value = '';   // clear immediately; Chrome may overwrite later, that's fine
+        _searchEl.addEventListener('keyup', () => { _searchQuery = _searchEl.value; renderTable(); });
+        _searchEl.addEventListener('paste', () => setTimeout(() => { _searchQuery = _searchEl.value; renderTable(); }, 10));
+    }
+
+    // ── boot ───────────────────────────────────────────────────────────────
+    async function initMappingPage() {
+        await Promise.all([
+            loadPortalProjects(),
+            loadMappings(),
+            loadLocalDepts(),
+            loadLocalProjects(),
+            checkStatus(),
+            loadSyncRecords(),
+        ]);
+        // Chrome/extensions may have fired keyup events during the fetch phase,
+        // setting _searchQuery to whatever was autofilled. Reset it now.
+        _searchQuery = '';
+        if (_searchEl) _searchEl.value = '';
+        renderTable();
+    }
+
+    // If Chrome autofills the input AFTER our render completes (its async form
+    // restore runs later), catch any click anywhere and silently reset the box.
+    document.addEventListener('click', function () {
+        if (_searchEl && _searchEl.value !== _searchQuery) {
+            _searchEl.value = _searchQuery;
+        }
+    }, true);  // capture phase — runs before any onclick handler
+
+    initMappingPage();
+})();
+</script>
+{% endblock %}
